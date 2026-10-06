@@ -1,0 +1,50 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{684488A6-D5F4-4D13-8EB0-FE009DB34817}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Echodeck.Core", "src\Echodeck.Core\Echodeck.Core.csproj", "{BB27C269-272E-4566-80C8-740717A4C6FF}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Echodeck.Audio", "src\Echodeck.Audio\Echodeck.Audio.csproj", "{D09A0DDF-F15F-429F-A36F-DD02C2001FF9}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{2819B94A-E74A-4246-90DD-F24E5F734792}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Echodeck.Core.Tests", "tests\Echodeck.Core.Tests\Echodeck.Core.Tests.csproj", "{ADC666BE-A971-4AB0-9841-DA748B6E4915}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Echodeck.App", "src\Echodeck.App\Echodeck.App.csproj", "{DD7FE9F3-1569-4B2A-9D3C-E323E6F915AF}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{BB27C269-272E-4566-80C8-740717A4C6FF}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{BB27C269-272E-4566-80C8-740717A4C6FF}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{BB27C269-272E-4566-80C8-740717A4C6FF}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{BB27C269-272E-4566-80C8-740717A4C6FF}.Release|Any CPU.Build.0 = Release|Any CPU
+		{D09A0DDF-F15F-429F-A36F-DD02C2001FF9}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{D09A0DDF-F15F-429F-A36F-DD02C2001FF9}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{D09A0DDF-F15F-429F-A36F-DD02C2001FF9}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{D09A0DDF-F15F-429F-A36F-DD02C2001FF9}.Release|Any CPU.Build.0 = Release|Any CPU
+		{ADC666BE-A971-4AB0-9841-DA748B6E4915}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{ADC666BE-A971-4AB0-9841-DA748B6E4915}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{ADC666BE-A971-4AB0-9841-DA748B6E4915}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{ADC666BE-A971-4AB0-9841-DA748B6E4915}.Release|Any CPU.Build.0 = Release|Any CPU
+		{DD7FE9F3-1569-4B2A-9D3C-E323E6F915AF}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{DD7FE9F3-1569-4B2A-9D3C-E323E6F915AF}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{DD7FE9F3-1569-4B2A-9D3C-E323E6F915AF}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{DD7FE9F3-1569-4B2A-9D3C-E323E6F915AF}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{BB27C269-272E-4566-80C8-740717A4C6FF} = {684488A6-D5F4-4D13-8EB0-FE009DB34817}
+		{D09A0DDF-F15F-429F-A36F-DD02C2001FF9} = {684488A6-D5F4-4D13-8EB0-FE009DB34817}
+		{ADC666BE-A971-4AB0-9841-DA748B6E4915} = {2819B94A-E74A-4246-90DD-F24E5F734792}
+		{DD7FE9F3-1569-4B2A-9D3C-E323E6F915AF} = {684488A6-D5F4-4D13-8EB0-FE009DB34817}
+	EndGlobalSection
+EndGlobal
