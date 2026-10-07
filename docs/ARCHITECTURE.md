@@ -179,6 +179,21 @@ clips ─ClipVoice (5 ms edge fades)──────────────�
 * **Safety.** A virtual cable is never opened as the microphone, even if it is the Windows default
   recording device, because that would feed Echodeck's output back into itself.
 
+### Your side in replays, and hearing your clips
+
+* **Own audio in replays.** `MixerEngine.OutputTap` copies every block sent to Discord into a
+  `TimedAudioRecorder`, a rolling buffer kept aligned with the clock like the Discord one. A gap is
+  filled with silence at the moment audio resumes, not at the end. `ReplayService.CaptureLast`
+  snapshots both buffers for the same window, both ending "now", and sums them with a limiter
+  (`AudioMixdown.SumEndAligned`). The own-audio snapshot drops its last 30 ms, because that audio
+  was rendered but hasn't reached the cable yet, which keeps your voice in time with your friends'.
+  Muted mic means it isn't recorded. The setting is on by default.
+* **Hearing your clips.** `HeadphoneClipMonitorService` plays a second, clips-only `MixerEngine` on
+  the headphones device. Every clip sent to Discord is also queued there, without the mic. Clips
+  are only queued while that stream is actually running, and are dropped when it stops, so
+  replugging the headset never releases a burst of old clips. Each mix is also capped at 16 voices.
+  This playback comes from Echodeck's own process, so per-process Discord capture never records it.
+
 ### Setup check (`AudioSetupMonitor` + `AudioSetupRules`)
 
 Every 5 s, and soon after any device or settings change, Echodeck compares the actual routing with

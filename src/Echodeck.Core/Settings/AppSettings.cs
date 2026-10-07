@@ -59,6 +59,15 @@ public sealed class AppSettings
     /// <summary>How much the mic is lowered while ducking, in dB (negative).</summary>
     public double DuckingDb { get; set; } = -8;
 
+    /// <summary>Also play clips sent to Discord on your own headphones (never your mic).</summary>
+    public bool HearClipsInHeadphones { get; set; } = true;
+
+    /// <summary>Volume of that headphone copy.</summary>
+    public double HeadphoneClipGain { get; set; } = 0.8;
+
+    /// <summary>Mix your side (what Echodeck sends to Discord: mic + clips) into replays.</summary>
+    public bool IncludeOwnAudioInReplays { get; set; } = true;
+
     public static readonly int[] BufferDurationChoices = { 10, 15, 30, 45, 60 };
 
     /// <summary>Clamps values that may have been hand-edited into nonsense.</summary>
@@ -71,6 +80,7 @@ public sealed class AppSettings
         MicrophoneGain = Clamp(MicrophoneGain, 0, 2, 1);
         SoundboardGain = Clamp(SoundboardGain, 0, 1.5, 0.8);
         DuckingDb = Clamp(DuckingDb, -30, 0, -8);
+        HeadphoneClipGain = Clamp(HeadphoneClipGain, 0, 1.5, 0.8);
     }
 
     private static double Clamp(double value, double min, double max, double fallback) =>

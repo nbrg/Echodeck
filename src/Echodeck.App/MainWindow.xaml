@@ -201,15 +201,25 @@
                                 <Slider Minimum="-30" Maximum="0" Value="{Binding DuckingDb}" TickFrequency="1" IsSnapToTickEnabled="True" VerticalAlignment="Center" />
                             </DockPanel>
 
-                            <TextBlock Text="Friends → Echodeck (replay buffer)" Style="{StaticResource SectionHeader}" />
+                            <TextBlock Text="Replay buffer" Style="{StaticResource SectionHeader}" />
+                            <CheckBox Content="Include my side in replays (my mic + clips I play), not just my friends"
+                                      IsChecked="{Binding IncludeOwnAudioInReplays}" Margin="0,0,0,8" />
                             <TextBlock Text="Capture method" Style="{StaticResource Label}" />
                             <ComboBox ItemsSource="{Binding CaptureModes}" SelectedItem="{Binding SelectedCaptureMode}" />
                             <TextBlock Text="Loopback device (only for 'Selected output device')" Style="{StaticResource Label}" />
                             <ComboBox ItemsSource="{Binding LoopbackDevices}" SelectedItem="{Binding SelectedLoopbackDevice}" IsEnabled="{Binding IsLoopbackDeviceEnabled}" />
 
                             <TextBlock Text="Local listening" Style="{StaticResource SectionHeader}" />
-                            <TextBlock Text="Headphones for previews (never sent to Discord)" Style="{StaticResource Label}" />
+                            <TextBlock Text="Your headphones (previews, and clips you play to Discord)" Style="{StaticResource Label}" />
                             <ComboBox ItemsSource="{Binding Headphones}" SelectedItem="{Binding SelectedHeadphones}" />
+                            <CheckBox Content="Hear clips I play to Discord in my headphones (never my own mic)"
+                                      IsChecked="{Binding HearClipsInHeadphones}" Margin="0,8,0,0" />
+                            <DockPanel Margin="20,4,0,0" IsEnabled="{Binding HearClipsInHeadphones}">
+                                <TextBlock Style="{StaticResource Label}" Width="120">
+                                    <Run Text="Volume " /><Run Text="{Binding HeadphoneClipVolume, Mode=OneWay, StringFormat={}{0:0}%}" />
+                                </TextBlock>
+                                <Slider Minimum="0" Maximum="150" Value="{Binding HeadphoneClipVolume}" TickFrequency="5" IsSnapToTickEnabled="True" VerticalAlignment="Center" />
+                            </DockPanel>
 
                             <Button Content="Refresh devices" Command="{Binding RefreshDevicesCommand}" HorizontalAlignment="Left" Margin="0,12,0,0" />
                         </StackPanel>

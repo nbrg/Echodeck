@@ -69,6 +69,7 @@ public partial class App : Application
         _services.GetRequiredService<DiscordCaptureService>().Start();
         _services.GetRequiredService<MicrophoneCaptureService>().Start();
         _services.GetRequiredService<VirtualOutputService>().Start();
+        _services.GetRequiredService<HeadphoneClipMonitorService>().Start();
         _services.GetRequiredService<AudioSetupMonitor>().Start();
 
         var window = _services.GetRequiredService<MainWindow>();
@@ -105,6 +106,7 @@ public partial class App : Application
         services.AddSingleton<MicrophoneCaptureService>();
         services.AddSingleton<AudioMixerService>();
         services.AddSingleton<VirtualOutputService>();
+        services.AddSingleton<HeadphoneClipMonitorService>();
         services.AddSingleton<AudioSetupMonitor>();
         services.AddSingleton<ReplayService>();
         services.AddSingleton<LocalPreviewPlayer>();

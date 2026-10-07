@@ -1,4 +1,5 @@
 using Echodeck.Audio.Capture;
+using Echodeck.Audio.Mixing;
 using Echodeck.Core.Audio;
 using Echodeck.Core.Infrastructure;
 using Echodeck.Core.Settings;
@@ -21,9 +22,11 @@ public sealed class ReplayService
     private readonly SettingsService _settings;
     private readonly AppPaths _paths;
     private readonly ILogger<ReplayService> _logger;
+    private readonly AudioMixerService _mixer;
 
-    public ReplayService(RollingAudioBuffer buffer, DiscordCaptureService capture, SettingsService settings, AppPaths paths, ILogger<ReplayService> logger)
+    public ReplayService(RollingAudioBuffer buffer, DiscordCaptureService capture, AudioMixerService mixer, SettingsService settings, AppPaths paths, ILogger<ReplayService> logger)
     {
+        _mixer = mixer;
         _buffer = buffer;
         _capture = capture;
         _settings = settings;
@@ -38,9 +41,16 @@ public sealed class ReplayService
     public AudioClip CaptureLast(TimeSpan duration)
     {
         _capture.SyncTimeline(); // include trailing silence up to "now"
-        var samples = _buffer.Snapshot(duration);
+        float[] samples = _buffer.Snapshot(duration);
+        bool includeOwn = _settings.Current.IncludeOwnAudioInReplays;
+        if (includeOwn)
+        {
+            // Friends (Discord playback) + your side (mic + clips sent to Discord), both ending now.
+            samples = AudioMixdown.SumEndAligned(samples, _mixer.SnapshotOwnAudio(duration), _buffer.Format);
+        }
         var clip = new AudioClip(samples, _buffer.Format, DateTimeOffset.Now);
-        _logger.LogInformation("Replay captured: requested {Requested:F1}s, got {Actual:F2}s", duration.TotalSeconds, clip.Duration.TotalSeconds);
+        _logger.LogInformation("Replay captured: requested {Requested:F1}s, got {Actual:F2}s{Own}",
+            duration.TotalSeconds, clip.Duration.TotalSeconds, includeOwn ? " (incl. own audio)" : "");
         return clip;
     }
 
