@@ -6,6 +6,8 @@
     <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
     <!-- Lets the Windows-only projects (WPF / WASAPI) compile on non-Windows build agents. Harmless on Windows. -->
     <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <!-- Symbols inside each DLL/exe: the published app is a single file, yet crash logs keep line numbers. -->
+    <DebugType>embedded</DebugType>
     <Company>Echodeck</Company>
     <Product>Echodeck</Product>
     <Version>0.1.0</Version>

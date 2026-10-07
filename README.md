@@ -11,15 +11,44 @@ live mic.
 > to WAV, and local preview. See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the design and the
 > roadmap.
 
+## Download and run (no build needed)
+
+1. Open the repository's **Releases** page and download `Echodeck-<version>-win-x64.exe`.
+2. Double-click it. That's the whole app: no installer, and no .NET install, because the runtime is
+   bundled inside the exe. Settings, clips and logs go to `%AppData%\Echodeck`.
+3. The exe isn't code-signed yet, so Windows SmartScreen may show "Windows protected your PC".
+   Click **More info → Run anyway**.
+
+To uninstall, delete the exe and the `%AppData%\Echodeck` folder.
+
+### Making a release (maintainers)
+
+The `release` GitHub Actions workflow builds the single-file exe on Windows, runs the tests, and
+attaches the exe plus a `.sha256` checksum to a new GitHub Release. Start it either way:
+
+* **From GitHub:** go to **Actions → release → Run workflow** and enter a version such as
+  `0.1.0-preview.1`.
+* **From git:** `git tag v0.2.0 && git push origin v0.2.0`
+
+A version with a `-` suffix is published as a pre-release. Every normal push also uploads a test
+build as a workflow artifact (open the Actions run, then **Artifacts**).
+
+To build the same exe locally:
+
+```powershell
+dotnet publish src/Echodeck.App -p:PublishProfile=win-x64
+# → artifacts/publish/win-x64/Echodeck.exe
+```
+
 ## Requirements
 
 * Windows 10 version 2004 or later, or Windows 11. This is needed for Discord-only capture; older
   versions fall back to whole-device capture.
-* [.NET 8 SDK](https://dotnet.microsoft.com/download/dotnet/8.0) to build.
+* [.NET 8 SDK](https://dotnet.microsoft.com/download/dotnet/8.0), only if you build from source.
 * Discord desktop app.
 * From Phase 2: [VB-CABLE](https://vb-audio.com/Cable/) (free).
 
-## Build and run
+## Build from source
 
 From a Developer PowerShell or any terminal in the repo root:
 

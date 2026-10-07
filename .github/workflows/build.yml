@@ -15,3 +15,10 @@ jobs:
       - run: dotnet restore Echodeck.sln
       - run: dotnet build Echodeck.sln --configuration Release --no-restore
       - run: dotnet test tests/Echodeck.Core.Tests --configuration Release --no-build --verbosity normal
+      # Every push also produces a downloadable test build (Actions run page → Artifacts).
+      - run: dotnet publish src/Echodeck.App -p:PublishProfile=win-x64
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Echodeck-win-x64-${{ github.sha }}
+          path: artifacts/publish/win-x64/Echodeck.exe
+          retention-days: 14
