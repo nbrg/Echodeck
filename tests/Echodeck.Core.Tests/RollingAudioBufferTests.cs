@@ -132,7 +132,8 @@ public class RollingAudioBufferTests
     [Fact]
     public async Task ConcurrentWriteAndSnapshot_NeverReturnsTornData()
     {
-        // Writer writes strictly increasing values; every snapshot must also be strictly increasing.
+        // Writer writes consecutive values (mod Wrap); every snapshot must be consecutive too.
+        const int Wrap = 1_000_000;
         var buffer = new RollingAudioBuffer(Mono1k, TimeSpan.FromSeconds(1));
         using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(500));
 
@@ -142,7 +143,8 @@ public class RollingAudioBufferTests
             while (!cts.IsCancellationRequested)
             {
                 buffer.Write(Ramp(next, 10));
-                next += 10;
+                // Wrap well below 2^24: beyond that, float can't represent consecutive integers.
+                next = (next + 10) % Wrap;
             }
         });
 
@@ -151,7 +153,7 @@ public class RollingAudioBufferTests
         {
             float[] snap = buffer.Snapshot(TimeSpan.FromMilliseconds(300));
             for (int i = 1; i < snap.Length; i++)
-                Assert.Equal(snap[i - 1] + 1, snap[i]);
+                Assert.Equal((snap[i - 1] + 1) % Wrap, snap[i]);
             snapshots++;
         }
         await writer;
