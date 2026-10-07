@@ -8,6 +8,9 @@ using Echodeck.Core.Audio;
 using Echodeck.Core.Discord;
 using Echodeck.Core.Infrastructure;
 using Echodeck.Core.Settings;
+using Echodeck.Core.Mixing;
+using Echodeck.Audio.Output;
+using Echodeck.Audio.Setup;
 
 namespace Echodeck.Audio.Diagnostics;
 
@@ -21,10 +24,19 @@ public sealed class DiagnosticsReport
     private readonly SettingsService _settings;
     private readonly FileLoggerProvider _log;
     private readonly AppPaths _paths;
+    private readonly MicrophoneCaptureService _mic;
+    private readonly VirtualOutputService _output;
+    private readonly MicJitterBuffer _jitter;
+    private readonly AudioSetupMonitor _setup;
 
     public DiagnosticsReport(DiscordCaptureService capture, RollingAudioBuffer buffer, AudioDeviceService devices,
-        IProcessSnapshotProvider processes, SettingsService settings, FileLoggerProvider log, AppPaths paths)
+        IProcessSnapshotProvider processes, SettingsService settings, FileLoggerProvider log, AppPaths paths,
+        MicrophoneCaptureService mic, VirtualOutputService output, MicJitterBuffer jitter, AudioSetupMonitor setup)
     {
+        _mic = mic;
+        _output = output;
+        _jitter = jitter;
+        _setup = setup;
         _capture = capture;
         _buffer = buffer;
         _devices = devices;
@@ -53,6 +65,16 @@ public sealed class DiagnosticsReport
         sb.AppendLine($"Discord: {status.DiscordFlavor ?? "-"} PID {status.DiscordProcessId?.ToString() ?? "-"}");
         sb.AppendLine($"Source: {status.SourceDescription ?? "-"}");
         sb.AppendLine($"Buffer: capacity {_buffer.Capacity.TotalSeconds:F0}s, filled {_buffer.Available.TotalSeconds:F1}s, frames written {_buffer.TotalFramesWritten}");
+
+        Section("Microphone → Discord");
+        sb.AppendLine($"Microphone: {(_mic.Status.Active ? "active" : "inactive")} {_mic.Status.DeviceName} — {_mic.Status.Message}");
+        sb.AppendLine($"Discord output: {(_output.Status.Active ? "active" : "inactive")} {_output.Status.DeviceName} — {_output.Status.Message}");
+        sb.AppendLine($"Mic buffer: {_jitter.BufferedFrames} frames (target {_jitter.TargetFrames}), underruns {_jitter.Underruns}, drift corrections {_jitter.CorrectedFrames} frames, overflow drops {_jitter.DroppedOnOverflowFrames} frames");
+
+        Section("Setup check");
+        var issues = _setup.Issues;
+        if (issues.Count == 0) sb.AppendLine("no problems found");
+        foreach (var issue in issues) sb.AppendLine($"{issue.Severity}: {issue.Problem} Fix: {issue.Fix}");
 
         Section("Discord processes");
         try

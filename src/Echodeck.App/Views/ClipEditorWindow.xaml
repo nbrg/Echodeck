@@ -1,0 +1,62 @@
+<Window x:Class="Echodeck.App.Views.ClipEditorWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:vm="clr-namespace:Echodeck.App.ViewModels"
+        xmlns:controls="clr-namespace:Echodeck.App.Controls"
+        mc:Ignorable="d"
+        d:DataContext="{d:DesignInstance Type=vm:ClipEditorViewModel}"
+        Title="{Binding Title}" Icon="/Assets/echodeck.ico"
+        Width="860" Height="400" MinWidth="560" MinHeight="320"
+        WindowStartupLocation="CenterOwner" ShowInTaskbar="False">
+    <Window.Resources>
+        <BooleanToVisibilityConverter x:Key="BoolToVisibility" />
+    </Window.Resources>
+
+    <DockPanel Margin="16">
+        <DockPanel DockPanel.Dock="Top" Margin="0,0,0,10">
+            <TextBlock Text="Name" Style="{StaticResource Label}" />
+            <TextBox x:Name="NameBox" Text="{Binding Name, UpdateSourceTrigger=PropertyChanged}" Padding="4,3" FontSize="14" />
+        </DockPanel>
+
+        <StackPanel DockPanel.Dock="Bottom" Margin="0,10,0,0">
+            <TextBlock Text="{Binding Message}" Foreground="#555" TextWrapping="Wrap" Margin="0,0,0,8" />
+            <DockPanel>
+                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                    <Button Content="Save as copy" Command="{Binding SaveAsCopyCommand}"
+                            Visibility="{Binding IsExistingClip, Converter={StaticResource BoolToVisibility}}" />
+                    <Button Content="Save + Play" Command="{Binding SaveAndPlayCommand}" />
+                    <Button Content="_Save (Ctrl+S)" Command="{Binding SaveCommand}" FontWeight="SemiBold" />
+                    <Button Content="Cancel (Esc)" Command="{Binding CancelCommand}" Margin="0" />
+                </StackPanel>
+                <StackPanel Orientation="Horizontal">
+                    <Button Command="{Binding TogglePreviewCommand}" MinWidth="130">
+                        <Button.Style>
+                            <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+                                <Setter Property="Content" Value="▶ Preview (Space)" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsPreviewing}" Value="True">
+                                        <Setter Property="Content" Value="■ Stop (Space)" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Button.Style>
+                    </Button>
+                    <Button Content="▶ Play to Discord (Enter)" Command="{Binding PlayToDiscordCommand}" />
+                </StackPanel>
+            </DockPanel>
+        </StackPanel>
+
+        <DockPanel>
+            <DockPanel DockPanel.Dock="Bottom" Margin="0,6,0,0">
+                <TextBlock DockPanel.Dock="Right" Foreground="#777"
+                           Text="←/→ start · Shift+←/→ end · hold Ctrl for 100 ms steps" />
+                <TextBlock Text="{Binding SelectionText}" FontWeight="SemiBold" />
+            </DockPanel>
+            <controls:WaveformView Peaks="{Binding Peaks}" Duration="{Binding Duration}"
+                                   SelectionStart="{Binding SelectionStart}" SelectionEnd="{Binding SelectionEnd}"
+                                   Playhead="{Binding Playhead}" MinHeight="160" />
+        </DockPanel>
+    </DockPanel>
+</Window>

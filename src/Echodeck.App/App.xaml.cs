@@ -1,6 +1,11 @@
 using System.Windows;
 using System.Windows.Threading;
+using Echodeck.App.Services;
 using Echodeck.App.ViewModels;
+using Echodeck.Audio.Mixing;
+using Echodeck.Audio.Output;
+using Echodeck.Audio.Setup;
+using Echodeck.Core.Mixing;
 using Echodeck.Audio.Capture;
 using Echodeck.Audio.Devices;
 using Echodeck.Audio.Diagnostics;
@@ -26,10 +31,20 @@ public partial class App : Application
     private ServiceProvider? _services;
     private FileLoggerProvider? _fileLogger;
     private ILogger? _logger;
+    private SingleInstanceGuard? _singleInstance;
 
     protected override void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
+
+        // A second copy would open the mic and virtual cable again: show the running one instead.
+        _singleInstance = SingleInstanceGuard.TryAcquire(() =>
+            Dispatcher.BeginInvoke(() => (MainWindow as MainWindow)?.BringToFront()));
+        if (_singleInstance is null)
+        {
+            Shutdown();
+            return;
+        }
 
         var paths = new AppPaths();
         paths.EnsureCreated();
@@ -52,6 +67,9 @@ public partial class App : Application
         };
 
         _services.GetRequiredService<DiscordCaptureService>().Start();
+        _services.GetRequiredService<MicrophoneCaptureService>().Start();
+        _services.GetRequiredService<VirtualOutputService>().Start();
+        _services.GetRequiredService<AudioSetupMonitor>().Start();
 
         var window = _services.GetRequiredService<MainWindow>();
         MainWindow = window;
@@ -83,11 +101,19 @@ public partial class App : Application
         services.AddSingleton<IProcessSnapshotProvider, WindowsProcessSnapshotProvider>();
         services.AddSingleton<AudioDeviceService>();
         services.AddSingleton<DiscordCaptureService>();
+        services.AddSingleton(_ => MicJitterBuffer.CreateDefault(AudioFormat.Internal));
+        services.AddSingleton<MicrophoneCaptureService>();
+        services.AddSingleton<AudioMixerService>();
+        services.AddSingleton<VirtualOutputService>();
+        services.AddSingleton<AudioSetupMonitor>();
         services.AddSingleton<ReplayService>();
         services.AddSingleton<LocalPreviewPlayer>();
         services.AddSingleton<DiagnosticsReport>();
 
         // UI
+        services.AddSingleton<DialogService>();
+        services.AddSingleton<ClipEditorFactory>();
+        services.AddSingleton<AudioPageViewModel>();
         services.AddSingleton<MainViewModel>();
         services.AddSingleton<MainWindow>();
 
@@ -109,6 +135,7 @@ public partial class App : Application
         // Disposes every singleton (capture threads, WASAPI clients, timers) in reverse order.
         _services?.Dispose();
         _fileLogger?.Dispose();
+        _singleInstance?.Dispose();
         base.OnExit(e);
     }
 }

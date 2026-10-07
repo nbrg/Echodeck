@@ -1,128 +1,262 @@
 <Window x:Class="Echodeck.App.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        xmlns:vm="clr-namespace:Echodeck.App.ViewModels"
-        Title="Echodeck — Discord instant replay"
-        Width="900" Height="600" MinWidth="720" MinHeight="480"
-        WindowStartupLocation="CenterScreen"
-        d:DataContext="{d:DesignInstance Type=vm:MainViewModel}"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-        mc:Ignorable="d">
+        xmlns:vm="clr-namespace:Echodeck.App.ViewModels"
+        xmlns:setup="clr-namespace:Echodeck.Core.Setup;assembly=Echodeck.Core"
+        mc:Ignorable="d"
+        d:DataContext="{d:DesignInstance Type=vm:MainViewModel}"
+        Title="Echodeck — Discord instant replay" Icon="/Assets/echodeck.ico"
+        Width="980" Height="700" MinWidth="780" MinHeight="560"
+        WindowStartupLocation="CenterScreen">
     <Window.Resources>
         <BooleanToVisibilityConverter x:Key="BoolToVisibility" />
+
+        <Style x:Key="Card" TargetType="Border">
+            <Setter Property="BorderBrush" Value="#DDD" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="6" />
+            <Setter Property="Padding" Value="10,8" />
+            <Setter Property="Margin" Value="0,0,8,0" />
+        </Style>
+        <Style x:Key="Meter" TargetType="ProgressBar">
+            <Setter Property="Height" Value="10" />
+            <Setter Property="Minimum" Value="0" />
+            <Setter Property="Maximum" Value="1" />
+            <Setter Property="Margin" Value="0,6,0,0" />
+            <Setter Property="Foreground" Value="#3BA55C" />
+        </Style>
+        <Style x:Key="RowButton" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+            <Setter Property="Padding" Value="6,1" />
+            <Setter Property="Margin" Value="0,0,4,0" />
+        </Style>
     </Window.Resources>
 
     <DockPanel Margin="16">
-        <!-- Status bar -->
-        <Border DockPanel.Dock="Bottom" BorderBrush="#DDD" BorderThickness="0,1,0,0" Padding="0,8,0,0" Margin="0,12,0,0">
-            <DockPanel>
-                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
-                    <Button Content="Open logs" Command="{Binding OpenLogsFolderCommand}" />
-                    <Button Content="Copy diagnostics" Command="{Binding CopyDiagnosticsCommand}" Margin="0" />
-                </StackPanel>
-                <TextBlock Text="{Binding StatusMessage}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
-            </DockPanel>
-        </Border>
-
-        <Grid>
+        <!-- ============ status strip ============ -->
+        <Grid DockPanel.Dock="Top">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="380" />
-                <ColumnDefinition Width="24" />
-                <ColumnDefinition Width="*" />
+                <ColumnDefinition /><ColumnDefinition /><ColumnDefinition />
             </Grid.ColumnDefinitions>
 
-            <!-- Left: capture status + settings -->
-            <ScrollViewer Grid.Column="0" VerticalScrollBarVisibility="Auto">
+            <Border Grid.Column="0" Style="{StaticResource Card}">
                 <StackPanel>
-                    <TextBlock Text="Discord capture" Style="{StaticResource SectionHeader}" Margin="0,0,0,6" />
-                    <Grid>
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="Auto" />
-                            <ColumnDefinition Width="*" />
-                        </Grid.ColumnDefinitions>
-                        <Grid.RowDefinitions>
-                            <RowDefinition /><RowDefinition /><RowDefinition /><RowDefinition />
-                        </Grid.RowDefinitions>
-                        <TextBlock Grid.Row="0" Text="Status" Style="{StaticResource Label}" />
-                        <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding CaptureStateText}" FontWeight="SemiBold" VerticalAlignment="Center" />
-                        <TextBlock Grid.Row="1" Text="Discord" Style="{StaticResource Label}" />
-                        <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding DiscordText}" VerticalAlignment="Center" />
-                        <TextBlock Grid.Row="2" Text="Source" Style="{StaticResource Label}" />
-                        <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding SourceText}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
-                        <TextBlock Grid.Row="3" Text="Buffer" Style="{StaticResource Label}" />
-                        <TextBlock Grid.Row="3" Grid.Column="1" Text="{Binding BufferText}" VerticalAlignment="Center" />
-                    </Grid>
-                    <TextBlock Text="{Binding CaptureSummary}" TextWrapping="Wrap" Margin="0,4,0,0" Foreground="#444" />
-                    <Border Background="#FFF4E5" BorderBrush="#F0B35B" BorderThickness="1" Padding="8" Margin="0,6,0,0"
-                            Visibility="{Binding CaptureMayIncludeOtherApps, Converter={StaticResource BoolToVisibility}}">
-                        <TextBlock TextWrapping="Wrap"
-                                   Text="Fallback capture: game, music and browser audio on the same device may be recorded. Per-process capture needs Windows 10 2004+ / Windows 11." />
-                    </Border>
-
-                    <TextBlock Text="Discord incoming" Style="{StaticResource Label}" Margin="0,10,0,2" />
-                    <ProgressBar Height="14" Minimum="0" Maximum="1" Value="{Binding IncomingLevel, Mode=OneWay}" Foreground="#3BA55C" />
-
-                    <TextBlock Text="Settings" Style="{StaticResource SectionHeader}" />
-                    <TextBlock Text="Capture method" Style="{StaticResource Label}" />
-                    <ComboBox ItemsSource="{Binding CaptureModes}" SelectedItem="{Binding SelectedCaptureMode}" />
-                    <TextBlock Text="Loopback device (selected-device mode)" Style="{StaticResource Label}" />
-                    <ComboBox ItemsSource="{Binding OutputDevices}" SelectedItem="{Binding SelectedLoopbackDevice}"
-                              IsEnabled="{Binding IsDeviceSelectionEnabled}" />
-                    <TextBlock Text="Replay buffer length" Style="{StaticResource Label}" />
-                    <ComboBox ItemsSource="{Binding BufferDurations}" SelectedItem="{Binding SelectedBufferDuration}" />
-                    <TextBlock Text="Local headphones (previews)" Style="{StaticResource Label}" />
-                    <ComboBox ItemsSource="{Binding OutputDevices}" SelectedItem="{Binding SelectedPreviewDevice}" />
-                    <Button Content="Refresh devices" Command="{Binding RefreshDevicesCommand}" HorizontalAlignment="Left" Margin="0,6,0,0" />
-                    <TextBlock Text="{Binding VirtualCableText}" TextWrapping="Wrap" Foreground="#666" Margin="0,8,0,0" />
+                    <TextBlock>
+                        <Run Text="Discord capture: " /><Run Text="{Binding CaptureStateText, Mode=OneWay}" FontWeight="SemiBold" />
+                        <Run Text="  ·  buffer " Foreground="#777" /><Run Text="{Binding BufferText, Mode=OneWay}" Foreground="#777" />
+                    </TextBlock>
+                    <TextBlock Text="{Binding CaptureDetail}" Foreground="#666" TextTrimming="CharacterEllipsis" ToolTip="{Binding CaptureDetail}" />
+                    <ProgressBar Style="{StaticResource Meter}" Value="{Binding IncomingLevel, Mode=OneWay}" ToolTip="Discord incoming (your friends)" />
                 </StackPanel>
-            </ScrollViewer>
-
-            <!-- Right: replay + clips -->
-            <DockPanel Grid.Column="2">
-                <StackPanel DockPanel.Dock="Top">
-                    <TextBlock Text="Instant replay" Style="{StaticResource SectionHeader}" Margin="0,0,0,6" />
+            </Border>
+            <Border Grid.Column="1" Style="{StaticResource Card}">
+                <StackPanel>
                     <StackPanel Orientation="Horizontal">
-                        <Button Command="{Binding SaveLastCommand}" FontSize="15" Padding="16,8">
-                            <TextBlock>
-                                <Run Text="Save last" />
-                                <Run Text="{Binding SelectedQuickSave.Value, Mode=OneWay}" />
-                                <Run Text="seconds" />
-                            </TextBlock>
-                        </Button>
-                        <ComboBox ItemsSource="{Binding QuickSaveDurations}" SelectedItem="{Binding SelectedQuickSave}"
-                                  Width="70" VerticalAlignment="Center" />
+                        <TextBlock><Run Text="Microphone: " /><Run Text="{Binding MicStateText, Mode=OneWay}" FontWeight="SemiBold" /></TextBlock>
+                        <TextBlock Text="  · MUTED" Foreground="#B3261E" FontWeight="SemiBold"
+                                   Visibility="{Binding Audio.MicrophoneMuted, Converter={StaticResource BoolToVisibility}}" />
                     </StackPanel>
+                    <TextBlock Text="{Binding MicDetail}" Foreground="#666" TextTrimming="CharacterEllipsis" ToolTip="{Binding MicDetail}" />
+                    <ProgressBar Style="{StaticResource Meter}" Value="{Binding MicLevel, Mode=OneWay}" ToolTip="Your microphone" />
+                </StackPanel>
+            </Border>
+            <Border Grid.Column="2" Style="{StaticResource Card}" Margin="0">
+                <StackPanel>
+                    <TextBlock>
+                        <Run Text="Discord output: " /><Run Text="{Binding OutputStateText, Mode=OneWay}" FontWeight="SemiBold" />
+                    </TextBlock>
+                    <TextBlock Text="{Binding OutputDetail}" Foreground="#666" TextTrimming="CharacterEllipsis" ToolTip="{Binding OutputDetail}" />
+                    <ProgressBar Style="{StaticResource Meter}" Value="{Binding OutgoingLevel, Mode=OneWay}" ToolTip="What Discord receives (mic + clips)" />
+                </StackPanel>
+            </Border>
+        </Grid>
 
-                    <DockPanel Margin="0,16,0,6">
+        <!-- ============ setup warnings ============ -->
+        <ItemsControl DockPanel.Dock="Top" ItemsSource="{Binding SetupIssues}" Margin="0,10,0,0"
+                      Visibility="{Binding HasSetupIssues, Converter={StaticResource BoolToVisibility}}">
+            <ItemsControl.ItemTemplate>
+                <DataTemplate DataType="{x:Type setup:SetupIssue}">
+                    <Border x:Name="IssueBorder" CornerRadius="6" Padding="10,6" Margin="0,0,0,6" BorderThickness="1"
+                            Background="#FFF4E5" BorderBrush="#F0B35B">
+                        <StackPanel>
+                            <TextBlock Text="{Binding Problem}" FontWeight="SemiBold" TextWrapping="Wrap" />
+                            <TextBlock TextWrapping="Wrap" Foreground="#5A4A2A">
+                                <Run Text="Fix: " FontWeight="SemiBold" /><Run Text="{Binding Fix, Mode=OneWay}" />
+                            </TextBlock>
+                        </StackPanel>
+                    </Border>
+                    <DataTemplate.Triggers>
+                        <DataTrigger Binding="{Binding Severity}" Value="{x:Static setup:SetupSeverity.Error}">
+                            <Setter TargetName="IssueBorder" Property="Background" Value="#FDECEA" />
+                        </DataTrigger>
+                    </DataTemplate.Triggers>
+                </DataTemplate>
+            </ItemsControl.ItemTemplate>
+        </ItemsControl>
+
+        <!-- ============ status bar ============ -->
+        <Border DockPanel.Dock="Bottom" BorderBrush="#DDD" BorderThickness="0,1,0,0" Padding="0,8,0,0" Margin="0,10,0,0">
+            <TextBlock Text="{Binding StatusMessage}" TextTrimming="CharacterEllipsis" ToolTip="{Binding StatusMessage}" />
+        </Border>
+
+        <TabControl Margin="0,10,0,0" Padding="12">
+            <!-- ============ Replay ============ -->
+            <TabItem Header="  Replay  ">
+                <DockPanel>
+                    <WrapPanel DockPanel.Dock="Top" Margin="0,0,0,12">
+                        <Button Command="{Binding SaveLastCommand}" FontSize="14" Padding="14,7">
+                            <TextBlock><Run Text="💾 Save last" /> <Run Text="{Binding SelectedQuickDuration.Value, Mode=OneWay}" /><Run Text=" s" /></TextBlock>
+                        </Button>
+                        <Button Command="{Binding ReplayLastToDiscordCommand}" FontSize="14" Padding="14,7">
+                            <TextBlock><Run Text="▶ Replay last" /> <Run Text="{Binding SelectedQuickDuration.Value, Mode=OneWay}" /><Run Text=" s to Discord" /></TextBlock>
+                        </Button>
+                        <ComboBox ItemsSource="{Binding QuickDurations}" SelectedItem="{Binding SelectedQuickDuration}"
+                                  Width="70" VerticalAlignment="Center" Margin="0,0,6,0" ToolTip="How many seconds the two buttons use" />
+                        <Button Command="{Binding EditLastCommand}" FontSize="14" Padding="14,7">
+                            <TextBlock><Run Text="✂ Edit last" /> <Run Text="{Binding SelectedBufferDuration.Value, Mode=OneWay}" /><Run Text=" s…" /></TextBlock>
+                        </Button>
+                        <Button Content="■ Stop clip" Command="{Binding StopClipsCommand}" FontSize="14" Padding="14,7"
+                                Visibility="{Binding IsClipPlaying, Converter={StaticResource BoolToVisibility}}" />
+                    </WrapPanel>
+
+                    <DockPanel DockPanel.Dock="Top" Margin="0,0,0,6">
                         <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
-                            <Button Content="Stop preview" Command="{Binding StopPreviewCommand}"
+                            <Button Content="■ Stop preview" Command="{Binding StopPreviewCommand}"
                                     Visibility="{Binding IsPreviewing, Converter={StaticResource BoolToVisibility}}" />
                             <Button Content="Open clips folder" Command="{Binding OpenClipsFolderCommand}" Margin="0" />
                         </StackPanel>
-                        <TextBlock Text="Saved clips" Style="{StaticResource SectionHeader}" Margin="0" VerticalAlignment="Center" />
+                        <TextBlock VerticalAlignment="Center">
+                            <Run Text="Saved clips" FontWeight="SemiBold" FontSize="15" />
+                            <Run Text="  double-click to edit · F2 rename · Del delete" Foreground="#777" />
+                        </TextBlock>
                     </DockPanel>
-                </StackPanel>
 
-                <ListView ItemsSource="{Binding SavedClips}" SelectedItem="{Binding SelectedClip}">
-                    <ListView.View>
-                        <GridView>
-                            <GridViewColumn Header="" Width="90">
-                                <GridViewColumn.CellTemplate>
-                                    <DataTemplate>
-                                        <Button Content="▶ Preview" Padding="6,1" Margin="0"
-                                                Command="{Binding DataContext.PreviewClipCommand, RelativeSource={RelativeSource AncestorType=Window}}"
-                                                CommandParameter="{Binding}" />
-                                    </DataTemplate>
-                                </GridViewColumn.CellTemplate>
-                            </GridViewColumn>
-                            <GridViewColumn Header="Name" Width="230" DisplayMemberBinding="{Binding Name}" />
-                            <GridViewColumn Header="Length" Width="70" DisplayMemberBinding="{Binding Duration, StringFormat={}{0:m\\:ss\\.f}}" />
-                            <GridViewColumn Header="Created" Width="130" DisplayMemberBinding="{Binding CreatedAt, StringFormat={}{0:yyyy-MM-dd HH:mm}}" />
-                        </GridView>
-                    </ListView.View>
-                </ListView>
-            </DockPanel>
-        </Grid>
+                    <ListView x:Name="ClipList" ItemsSource="{Binding SavedClips}" SelectedItem="{Binding SelectedClip}">
+                        <ListView.View>
+                            <GridView>
+                                <GridViewColumn Header="" Width="330">
+                                    <GridViewColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <StackPanel Orientation="Horizontal">
+                                                <Button Content="▶ Preview" Style="{StaticResource RowButton}" ToolTip="Play on your headphones only"
+                                                        Command="{Binding DataContext.PreviewClipCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}" />
+                                                <Button Content="▶ Discord" Style="{StaticResource RowButton}" ToolTip="Play into the voice channel"
+                                                        Command="{Binding DataContext.PlayClipToDiscordCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}" />
+                                                <Button Content="✂ Edit" Style="{StaticResource RowButton}" ToolTip="Trim / rename"
+                                                        Command="{Binding DataContext.EditClipCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}" />
+                                                <Button Content="Rename" Style="{StaticResource RowButton}"
+                                                        Command="{Binding DataContext.RenameClipCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}" />
+                                                <Button Content="🗑" Style="{StaticResource RowButton}" ToolTip="Delete"
+                                                        Command="{Binding DataContext.DeleteClipCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}" />
+                                            </StackPanel>
+                                        </DataTemplate>
+                                    </GridViewColumn.CellTemplate>
+                                </GridViewColumn>
+                                <GridViewColumn Header="Name" Width="280" DisplayMemberBinding="{Binding Name}" />
+                                <GridViewColumn Header="Length" Width="70" DisplayMemberBinding="{Binding Duration, StringFormat={}{0:m\\:ss\\.f}}" />
+                                <GridViewColumn Header="Created" Width="130" DisplayMemberBinding="{Binding CreatedAt, StringFormat={}{0:yyyy-MM-dd HH:mm}}" />
+                            </GridView>
+                        </ListView.View>
+                    </ListView>
+                </DockPanel>
+            </TabItem>
+
+            <!-- ============ Audio ============ -->
+            <TabItem Header="  Audio  " DataContext="{Binding Audio}">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" MinWidth="320" />
+                            <ColumnDefinition Width="24" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+
+                        <StackPanel Grid.Column="0">
+                            <TextBlock Text="Your voice → Discord" Style="{StaticResource SectionHeader}" Margin="0,0,0,6" />
+                            <TextBlock Text="Microphone (your real mic)" Style="{StaticResource Label}" />
+                            <ComboBox ItemsSource="{Binding Microphones}" SelectedItem="{Binding SelectedMicrophone}" />
+                            <DockPanel Margin="0,6,0,0">
+                                <CheckBox DockPanel.Dock="Right" Content="Mute" IsChecked="{Binding MicrophoneMuted}" VerticalAlignment="Center" Margin="10,0,0,0" />
+                                <TextBlock Style="{StaticResource Label}" Width="140">
+                                    <Run Text="Mic volume " /><Run Text="{Binding MicrophoneVolume, Mode=OneWay, StringFormat={}{0:0}%}" />
+                                </TextBlock>
+                                <Slider Minimum="0" Maximum="200" Value="{Binding MicrophoneVolume}" TickFrequency="10" IsSnapToTickEnabled="True" VerticalAlignment="Center" />
+                            </DockPanel>
+
+                            <TextBlock Text="Send to Discord via" Style="{StaticResource Label}" Margin="0,10,0,3" />
+                            <ComboBox ItemsSource="{Binding DiscordOutputs}" SelectedItem="{Binding SelectedDiscordOutput}" />
+                            <DockPanel Margin="0,6,0,0">
+                                <TextBlock Style="{StaticResource Label}" Width="140">
+                                    <Run Text="Clip volume " /><Run Text="{Binding SoundboardVolume, Mode=OneWay, StringFormat={}{0:0}%}" />
+                                </TextBlock>
+                                <Slider Minimum="0" Maximum="150" Value="{Binding SoundboardVolume}" TickFrequency="5" IsSnapToTickEnabled="True" VerticalAlignment="Center" />
+                            </DockPanel>
+                            <CheckBox Content="Let clips overlap (otherwise a new clip replaces the playing one)" IsChecked="{Binding AllowClipOverlap}" Margin="0,8,0,0" />
+                            <CheckBox Content="Lower my mic while a clip plays (ducking)" IsChecked="{Binding DuckingEnabled}" Margin="0,6,0,0" />
+                            <DockPanel Margin="20,4,0,0" IsEnabled="{Binding DuckingEnabled}">
+                                <TextBlock Style="{StaticResource Label}" Width="120">
+                                    <Run Text="Lower by " /><Run Text="{Binding DuckingDb, Mode=OneWay, StringFormat={}{0:0} dB}" />
+                                </TextBlock>
+                                <Slider Minimum="-30" Maximum="0" Value="{Binding DuckingDb}" TickFrequency="1" IsSnapToTickEnabled="True" VerticalAlignment="Center" />
+                            </DockPanel>
+
+                            <TextBlock Text="Friends → Echodeck (replay buffer)" Style="{StaticResource SectionHeader}" />
+                            <TextBlock Text="Capture method" Style="{StaticResource Label}" />
+                            <ComboBox ItemsSource="{Binding CaptureModes}" SelectedItem="{Binding SelectedCaptureMode}" />
+                            <TextBlock Text="Loopback device (only for 'Selected output device')" Style="{StaticResource Label}" />
+                            <ComboBox ItemsSource="{Binding LoopbackDevices}" SelectedItem="{Binding SelectedLoopbackDevice}" IsEnabled="{Binding IsLoopbackDeviceEnabled}" />
+
+                            <TextBlock Text="Local listening" Style="{StaticResource SectionHeader}" />
+                            <TextBlock Text="Headphones for previews (never sent to Discord)" Style="{StaticResource Label}" />
+                            <ComboBox ItemsSource="{Binding Headphones}" SelectedItem="{Binding SelectedHeadphones}" />
+
+                            <Button Content="Refresh devices" Command="{Binding RefreshDevicesCommand}" HorizontalAlignment="Left" Margin="0,12,0,0" />
+                        </StackPanel>
+
+                        <!-- Setup guide -->
+                        <Border Grid.Column="2" Background="#F6F7FB" CornerRadius="6" Padding="14" VerticalAlignment="Top">
+                            <StackPanel>
+                                <TextBlock Text="How to set it up" Style="{StaticResource SectionHeader}" Margin="0,0,0,8" />
+                                <TextBlock TextWrapping="Wrap" LineHeight="20">
+                                    <Run Text="Windows sound output" FontWeight="SemiBold" /><LineBreak />
+                                    <Run Text="Your headset. Never the CABLE devices." /><LineBreak /><LineBreak />
+                                    <Run Text="Echodeck (this tab)" FontWeight="SemiBold" /><LineBreak />
+                                    <Run Text="Microphone: your real mic" /><LineBreak />
+                                    <Run Text="Send to Discord via: CABLE Input (VB-Audio Virtual Cable)" /><LineBreak />
+                                    <Run Text="Headphones: your headset" /><LineBreak /><LineBreak />
+                                    <Run Text="Discord → User Settings → Voice &amp; Video" FontWeight="SemiBold" /><LineBreak />
+                                    <Run Text="Input Device: CABLE Output (VB-Audio Virtual Cable)" /><LineBreak />
+                                    <Run Text="Output Device: your headset" /><LineBreak />
+                                    <Run Text="Input Mode: Voice Activity. With Push to Talk, friends only hear clips while you hold the key." /><LineBreak />
+                                    <Run Text="If clips sound chopped, set Noise Suppression to None or Standard and turn off 'Automatically determine input sensitivity'." /><LineBreak /><LineBreak />
+                                    <Run Text="Note: Echodeck now carries your voice to Discord — keep it running while you're in a call." Foreground="#666" />
+                                </TextBlock>
+                            </StackPanel>
+                        </Border>
+                    </Grid>
+                </ScrollViewer>
+            </TabItem>
+
+            <!-- ============ Settings ============ -->
+            <TabItem Header="  Settings  ">
+                <StackPanel MaxWidth="520" HorizontalAlignment="Left">
+                    <TextBlock Text="Replay buffer length (kept in memory only)" Style="{StaticResource Label}" />
+                    <ComboBox ItemsSource="{Binding BufferDurations}" SelectedItem="{Binding SelectedBufferDuration}" Width="200" HorizontalAlignment="Left" />
+
+                    <TextBlock Text="Data folder" Style="{StaticResource SectionHeader}" />
+                    <TextBlock Text="{Binding DataFolder}" Foreground="#555" TextWrapping="Wrap" />
+                    <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                        <Button Content="Open clips folder" Command="{Binding OpenClipsFolderCommand}" />
+                        <Button Content="Open logs" Command="{Binding OpenLogsFolderCommand}" />
+                    </StackPanel>
+
+                    <TextBlock Text="Troubleshooting" Style="{StaticResource SectionHeader}" />
+                    <TextBlock Text="Copies devices, Discord detection, setup warnings and recent log lines — paste it when reporting a problem."
+                               TextWrapping="Wrap" Foreground="#555" />
+                    <Button Content="Copy diagnostics" Command="{Binding CopyDiagnosticsCommand}" HorizontalAlignment="Left" Margin="0,8,0,0" />
+                </StackPanel>
+            </TabItem>
+        </TabControl>
     </DockPanel>
 </Window>

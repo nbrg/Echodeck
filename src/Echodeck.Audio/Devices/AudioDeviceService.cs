@@ -14,6 +14,12 @@ public sealed record AudioDeviceInfo(string Id, string Name, bool IsDefault)
 /// <summary>Where Discord's audio session currently lives.</summary>
 public sealed record DiscordSessionDevice(string DeviceId, string DeviceName, bool SessionActive);
 
+/// <summary>Status of one of Echodeck's own audio endpoints (microphone, Discord output).</summary>
+public sealed record EndpointStatus(bool Active, string? DeviceName, string Message)
+{
+    public static EndpointStatus Starting { get; } = new(false, null, "Starting…");
+}
+
 /// <summary>
 /// Device enumeration, hot-plug notifications and audio-session lookup.
 /// <para>
@@ -87,7 +93,15 @@ public sealed class AudioDeviceService : IDisposable
     /// Active sessions win over inactive ones; among inactive ones <paramref name="preferredDeviceId"/>
     /// wins so we don't flap between devices while Discord is silent.
     /// </summary>
-    public DiscordSessionDevice? FindDeviceForProcesses(IReadOnlyCollection<int> processIds, string? preferredDeviceId)
+    public DiscordSessionDevice? FindDeviceForProcesses(IReadOnlyCollection<int> processIds, string? preferredDeviceId) =>
+        FindDeviceForProcesses(processIds, preferredDeviceId, DataFlow.Render, activeOnly: false);
+
+    /// <summary>
+    /// Like <see cref="FindDeviceForProcesses(IReadOnlyCollection{int}, string?)"/> for either
+    /// direction. With <paramref name="activeOnly"/>, stale sessions (a device Discord used earlier)
+    /// are ignored — used by the setup check so it only reports what Discord is using right now.
+    /// </summary>
+    public DiscordSessionDevice? FindDeviceForProcesses(IReadOnlyCollection<int> processIds, string? preferredDeviceId, DataFlow flow, bool activeOnly)
     {
         if (processIds.Count == 0) return null;
         var pids = processIds.ToHashSet();
@@ -96,7 +110,7 @@ public sealed class AudioDeviceService : IDisposable
         try
         {
             using var enumerator = new MMDeviceEnumerator();
-            foreach (var device in enumerator.EnumerateAudioEndPoints(DataFlow.Render, DeviceState.Active))
+            foreach (var device in enumerator.EnumerateAudioEndPoints(flow, DeviceState.Active))
             {
                 using (device)
                 {
@@ -111,6 +125,7 @@ public sealed class AudioDeviceService : IDisposable
                         if (session.State == NAudio.CoreAudioApi.Interfaces.AudioSessionState.AudioSessionStateActive)
                             return new DiscordSessionDevice(device.ID, device.FriendlyName, true);
 
+                        if (activeOnly) continue;
                         if (inactiveMatch is null || device.ID == preferredDeviceId)
                             inactiveMatch = new DiscordSessionDevice(device.ID, device.FriendlyName, false);
                     }
@@ -123,6 +138,10 @@ public sealed class AudioDeviceService : IDisposable
         }
         return inactiveMatch;
     }
+
+    /// <summary>The current Windows default output or input device (Multimedia role), if any.</summary>
+    public AudioDeviceInfo? GetDefaultDevice(DataFlow flow) =>
+        (flow == DataFlow.Render ? GetOutputDevices() : GetInputDevices()).FirstOrDefault(d => d.IsDefault);
 
     /// <summary>VB-CABLE detection for the setup page / diagnostics.</summary>
     public (AudioDeviceInfo? CableInput, AudioDeviceInfo? CableOutput) FindVirtualCable()
