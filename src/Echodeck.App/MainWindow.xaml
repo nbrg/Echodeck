@@ -132,7 +132,13 @@
                             <Button Content="■ Stop clip" Command="{Binding StopClipsCommand}" Style="{StaticResource BigButton}"
                                     Visibility="{Binding IsClipPlaying, Converter={StaticResource BoolToVisibility}}" />
                         </WrapPanel>
-                        <TextBlock Text="{Binding HotkeyHints}" Style="{StaticResource Hint}" Margin="0,2,0,14" />
+                        <TextBlock Text="{Binding HotkeyHints}" Style="{StaticResource Hint}" Margin="0,2,0,6" />
+                        <WrapPanel Margin="0,0,0,14">
+                            <CheckBox Content="Trim silence from the start and end" IsChecked="{Binding AutoTrimSilence}" Margin="0,0,18,0"
+                                      ToolTip="Saved replays (button, hotkey, phone) lose the quiet bit before and after the talking. A short pad is kept." />
+                            <CheckBox Content="Even out loudness" IsChecked="{Binding NormalizeLoudness}"
+                                      ToolTip="New clips are brought to the same loudness (−18 LUFS, peaks never above −1 dBFS), so quiet and loud friends play at a similar volume. Existing clips aren't changed." />
+                        </WrapPanel>
                         <TextBlock Margin="0,0,0,6">
                             <Run Text="Recent clips" FontWeight="SemiBold" FontSize="15" />
                             <Run Text="  right-click for more · Del deletes · Ctrl/Shift-click selects several" Foreground="#777" />
@@ -400,7 +406,7 @@
                 <ScrollViewer VerticalScrollBarVisibility="Auto">
                     <StackPanel MaxWidth="900" HorizontalAlignment="Left">
                         <TextBlock Style="{StaticResource Hint}" Margin="0,0,0,10"
-                                   Text="These work everywhere, even while CS2 is focused or Echodeck is in the tray. Click a box and press the keys (Ctrl/Alt/Shift + F-keys, numpad or letters). Backspace clears it. A shortcut is reserved for Echodeck while it's set, so letters and digits need Ctrl or Alt." />
+                                   Text="These work everywhere, even while CS2 is focused or Echodeck is in the tray. Click a box and press the keys (Ctrl/Alt/Shift + F-keys, numpad or letters). Backspace clears it. A shortcut belongs to Echodeck while it's set: other programs no longer receive it (so plain F8 won't reach a game that uses F8). Pick a combination nothing else needs; letters and digits need Ctrl or Alt. If a game runs in exclusive fullscreen, the trim-editor hotkey saves the whole buffer instead of opening a window (which would minimise the game)." />
                         <ItemsControl ItemsSource="{Binding GlobalRows}">
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate>

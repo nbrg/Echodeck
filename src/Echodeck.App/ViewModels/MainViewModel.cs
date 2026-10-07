@@ -69,6 +69,8 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         _loading = true;
         var s = settings.Current;
         SelectedQuickDuration = QuickDurations.FirstOrDefault(c => c.Value == s.QuickSaveSeconds) ?? QuickDurations.First(c => c.Value == 5);
+        AutoTrimSilence = s.AutoTrimSilence;
+        NormalizeLoudness = s.NormalizeLoudness;
         _loading = false;
         UpdateHotkeyHints(s);
 
@@ -106,6 +108,12 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     public ObservableCollection<SetupIssue> SetupIssues { get; } = new();
 
     [ObservableProperty] private int _selectedTabIndex;
+
+    /// <summary>Tidy up saved replays: cut silence at the ends.</summary>
+    [ObservableProperty] private bool _autoTrimSilence;
+
+    /// <summary>Tidy up new clips: even out loudness.</summary>
+    [ObservableProperty] private bool _normalizeLoudness;
 
     // Status of the three audio paths
     [ObservableProperty] private bool _captureActive;
@@ -152,6 +160,16 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
     [RelayCommand]
     private void ToggleMute() => _actions.ToggleMute();
+
+    partial void OnAutoTrimSilenceChanged(bool value)
+    {
+        if (!_loading) _settings.Update(s => s.AutoTrimSilence = value);
+    }
+
+    partial void OnNormalizeLoudnessChanged(bool value)
+    {
+        if (!_loading) _settings.Update(s => s.NormalizeLoudness = value);
+    }
 
     partial void OnSelectedQuickDurationChanged(Choice<int>? value)
     {

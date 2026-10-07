@@ -69,6 +69,16 @@ public sealed class AppSettings
     /// <summary>Mix your side (what Echodeck sends to Discord: mic + clips) into replays.</summary>
     public bool IncludeOwnAudioInReplays { get; set; } = true;
 
+    // ---- Saved replays: automatic tidy-up
+
+    /// <summary>Cut the silence before and after the talking when a replay is saved.</summary>
+    public bool AutoTrimSilence { get; set; } = true;
+
+    /// <summary>Even out loudness of new clips (to <see cref="TargetLoudnessLufs"/>, peak ≤ −1 dBFS).</summary>
+    public bool NormalizeLoudness { get; set; } = true;
+
+    public double TargetLoudnessLufs { get; set; } = ClipPolish.DefaultTargetLufs;
+
     // ---- Phase 3: global hotkeys (action id → gesture text, e.g. "replay:5" → "F8")
 
     public Dictionary<string, string> Hotkeys { get; set; } = HotkeyActions.DefaultBindings();
@@ -112,6 +122,7 @@ public sealed class AppSettings
         SoundboardGain = Clamp(SoundboardGain, 0, 1.5, 0.8);
         DuckingDb = Clamp(DuckingDb, -30, 0, -8);
         HeadphoneClipGain = Clamp(HeadphoneClipGain, 0, 1.5, 0.8);
+        TargetLoudnessLufs = Clamp(TargetLoudnessLufs, -30, -10, ClipPolish.DefaultTargetLufs);
         Hotkeys ??= HotkeyActions.DefaultBindings();
         HotkeyActions.Migrate(Hotkeys);
         RemotePort = RemotePort is >= 1024 and <= 65535 ? RemotePort : 5800;
