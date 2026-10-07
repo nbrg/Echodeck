@@ -549,6 +549,15 @@
                         <CheckBox Content="Start minimised to the tray" IsChecked="{Binding StartMinimized}" Margin="0,0,0,6" />
                         <CheckBox Content="Start Echodeck when I sign in to Windows" IsChecked="{Binding StartWithWindows}" />
 
+                        <TextBlock Text="Updates" Style="{StaticResource SectionHeader}" />
+                        <TextBlock Text="{Binding VersionText}" FontWeight="SemiBold" />
+                        <TextBlock Text="{Binding UpdateStatus}" Style="{StaticResource Hint}" Margin="0,2,0,0" />
+                        <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                            <Button Content="Check for updates" Command="{Binding CheckForUpdatesCommand}" />
+                            <Button Content="Restart to update" Command="{Binding RestartToUpdateCommand}" FontWeight="SemiBold"
+                                    Visibility="{Binding UpdateReady, Converter={StaticResource BoolToVisibility}}" />
+                        </StackPanel>
+
                         <TextBlock Text="Data folder" Style="{StaticResource SectionHeader}" />
                         <TextBlock Text="{Binding DataFolder}" Foreground="#555" TextWrapping="Wrap" />
                         <StackPanel Orientation="Horizontal" Margin="0,8,0,0">

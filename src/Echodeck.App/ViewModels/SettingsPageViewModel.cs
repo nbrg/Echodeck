@@ -18,10 +18,14 @@ public sealed partial class SettingsPageViewModel : ObservableObject
     private readonly DiagnosticsReport _diagnostics;
     private readonly AppPaths _paths;
     private readonly ILogger<SettingsPageViewModel> _logger;
+    private readonly UpdateService _updates;
     private bool _loading;
 
-    public SettingsPageViewModel(SettingsService settings, DiagnosticsReport diagnostics, AppPaths paths, ILogger<SettingsPageViewModel> logger)
+    public SettingsPageViewModel(SettingsService settings, DiagnosticsReport diagnostics, AppPaths paths, UpdateService updates, ILogger<SettingsPageViewModel> logger)
     {
+        _updates = updates;
+        _updates.Changed += (_, _) => RefreshUpdateState();
+        RefreshUpdateState();
         _settings = settings;
         _diagnostics = diagnostics;
         _paths = paths;
@@ -60,6 +64,22 @@ public sealed partial class SettingsPageViewModel : ObservableObject
     [ObservableProperty] private bool _startMinimized;
     [ObservableProperty] private bool _startWithWindows;
     [ObservableProperty] private string _message = "";
+    [ObservableProperty] private string _updateStatus = "";
+    [ObservableProperty] private bool _updateReady;
+
+    public string VersionText => $"Echodeck {_updates.CurrentVersion}" + (_updates.IsInstalled ? "" : " (not installed — portable copy)");
+
+    private void RefreshUpdateState()
+    {
+        UpdateStatus = _updates.StatusText;
+        UpdateReady = _updates.UpdateReady;
+    }
+
+    [RelayCommand]
+    private Task CheckForUpdatesAsync() => _updates.CheckAsync(userInitiated: true);
+
+    [RelayCommand]
+    private void RestartToUpdate() => _updates.RestartToUpdate();
 
     partial void OnSelectedBufferDurationChanged(Choice<int>? value) { if (!_loading && value is not null) _settings.Update(s => s.ReplayBufferSeconds = value.Value); }
     partial void OnReplayBufferEnabledChanged(bool value) { if (!_loading) _settings.Update(s => s.ReplayBufferEnabled = value); }

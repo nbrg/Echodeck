@@ -49,19 +49,26 @@ jobs:
       - name: Test
         run: dotnet test tests/Echodeck.Core.Tests --configuration Release
 
-      - name: Publish single-file exe
-        run: dotnet publish src/Echodeck.App -p:PublishProfile=win-x64 -p:Version=${{ steps.version.outputs.version }}
+      - name: Publish
+        # A normal self-contained folder (not single-file): Velopack installs it under
+        # %LocalAppData%\Echodeck and ships small delta updates between versions.
+        run: dotnet publish src/Echodeck.App -c Release -r win-x64 --self-contained true -p:PublishSingleFile=false -p:Version=${{ steps.version.outputs.version }} -o publish
 
-      - name: Package
-        id: package
-        run: |
-          $v = '${{ steps.version.outputs.version }}'
-          New-Item -ItemType Directory -Force -Path dist | Out-Null
-          $exe = "dist/Echodeck-$v-win-x64.exe"
-          Copy-Item artifacts/publish/win-x64/Echodeck.exe $exe
-          $hash = (Get-FileHash $exe -Algorithm SHA256).Hash.ToLower()
-          "$hash  $(Split-Path $exe -Leaf)" | Out-File -Encoding ascii "$exe.sha256"
-          "exe=$exe" >> $env:GITHUB_OUTPUT
+      - name: Install Velopack CLI
+        run: dotnet tool install -g vpk --version 1.2.161
+
+      - name: Fetch previous release (for delta updates)
+        # Older Echodeck releases have no Velopack packages; that's fine, we then ship a full package only.
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: vpk download github --repoUrl https://github.com/${{ github.repository }} --pre --token $env:GH_TOKEN -o releases
+
+      - name: Package installer + update
+        run: >
+          vpk pack --packId Echodeck --packVersion ${{ steps.version.outputs.version }}
+          --packDir publish --mainExe Echodeck.exe --packTitle Echodeck --packAuthors Echodeck
+          --icon src/Echodeck.App/Assets/echodeck.ico --outputDir releases
 
       - name: Create GitHub release
         env:
@@ -70,20 +77,28 @@ jobs:
           $v = '${{ steps.version.outputs.version }}'
           $tag = "v$v"
           $notes = @"
-          ## Download and run
+          ## Install (first time) — or just let Echodeck update itself
 
-          1. Download **Echodeck-$v-win-x64.exe** below.
-          2. Double-click it. No installer and no .NET install needed; settings, clips and logs live in ``%AppData%\Echodeck``.
-          3. Windows SmartScreen may say "Windows protected your PC" because the exe is not code-signed yet: click **More info → Run anyway**.
+          1. Download **Echodeck-win-Setup.exe** below and run it. Echodeck installs for your user (no admin), adds Start menu and desktop shortcuts, and starts.
+          2. From then on Echodeck **updates itself**: new versions download in the background and install when you click *Settings → Restart to update* or quit Echodeck. No more separate downloads.
+          3. Windows SmartScreen may say "Windows protected your PC" because the installer isn't code-signed yet: click **More info → Run anyway**.
 
-          Requirements: 64-bit Windows 10 version 2004+ or Windows 11, Discord desktop app.
-          From Phase 2 on you also need [VB-CABLE](https://vb-audio.com/Cable/).
+          Coming from an older Echodeck exe? Install once with the Setup file and delete the old exe(s). Your clips and settings (``%AppData%\Echodeck``) are kept.
+          Prefer no install? Use **Echodeck-win-Portable.zip** (doesn't auto-update).
+
+          Requirements: 64-bit Windows 10 version 2004+ or Windows 11, Discord desktop app, [VB-CABLE](https://vb-audio.com/Cable/).
 
           Test checklist: [docs/TESTING.md](https://github.com/${{ github.repository }}/blob/$tag/docs/TESTING.md)
           "@
           $notes | Out-File -Encoding utf8 notes.md
 
-          $ghArgs = @($tag, '${{ steps.package.outputs.exe }}', '${{ steps.package.outputs.exe }}.sha256',
-                      '--title', "Echodeck $v", '--notes-file', 'notes.md', '--target', '${{ github.sha }}')
+          # Upload only this version's files (vpk download may have fetched older packages for deltas).
+          $assets = Get-ChildItem releases -File | Where-Object {
+            $_.Name -like '*Setup.exe' -or $_.Name -like '*Portable.zip' -or $_.Name -like "*$v*" -or
+            $_.Name -eq 'RELEASES' -or $_.Name -like 'releases.*.json' -or $_.Name -like 'assets.*.json'
+          } | ForEach-Object { $_.FullName }
+          Write-Host "Uploading:"; $assets | ForEach-Object { Write-Host "  $_" }
+
+          $ghArgs = @($tag) + $assets + @('--title', "Echodeck $v", '--notes-file', 'notes.md', '--target', '${{ github.sha }}')
           if ('${{ steps.version.outputs.prerelease }}' -eq 'true') { $ghArgs += '--prerelease' }
           gh release create @ghArgs
