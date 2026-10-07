@@ -181,8 +181,7 @@ public sealed class RemoteHost : IRemoteBackend, IDisposable, IAsyncDisposable
 
     public Task<RemoteResult> StopAsync() => OnUi(() =>
     {
-        _actions.StopClips();
-        _preview.Stop();
+        _actions.StopClips(); // also stops PC previews
         return Task.FromResult(new RemoteResult(true, "Stopped"));
     });
 

@@ -13,6 +13,8 @@ Unit tests cover the platform-neutral core:
 * Discord root-process selection
 * the WAV writer
 * the peak meter
+* clip tidy-up: loudness measured per ITU-R BS.1770 (1 kHz reference tones), gating, silence
+  trimming with padding, boost/cut limits, and the −1 dBFS peak ceiling
 
 They run on any OS. CI builds the whole solution on `windows-latest`.
 
@@ -82,7 +84,15 @@ Preparation: VB-CABLE installed. Windows output and Discord output on your heads
 | 3.3 | Hotkeys tab: set "Stop playing clips" to F8 as well. | Both rows show the conflict, and only the first one fires. |
 | 3.4 | Set a hotkey that another app already uses (e.g. one Discord's keybinds own). | The row says it's taken by another program. |
 | 3.5 | Try to set plain `A`. | Rejected: letters need Ctrl or Alt. |
+| 3.2a | Run a game in **exclusive** fullscreen (CS2: Video → Display Mode "Fullscreen") and press **F9**. | The game is **not** minimised. The status line/tray says the whole buffer was saved instead, and the clip shows up (also on the phone). In borderless mode F9 opens the editor as usual. |
 | 3.6 | Mash F8 ten times quickly. | No crash or pile-up. A new replay replaces the playing one unless overlap is on. |
+| 4.0a | A friend says one line after 3 s of quiet; press **F8** (save 10 s). | The new clip starts just before the line and ends just after it. The status line says e.g. "trimmed 6.8 s of silence, +5.2 dB". |
+| 4.0b | Save a very quiet friend and a loud friend. Play both into Discord. | They sound about equally loud. Untick "Even out loudness" (Replay tab), save again: that clip keeps its original level. |
+| 4.0c | In the editor (F9), select a part and **Save**. | Your selection is kept exactly (no silence trimming), only loudness is evened out. |
+| 4.0d | Quit Discord, talk for a few seconds, press **F8**. | It saves with an amber note "only your side is in it". Silent → refused with a reason. |
+| 4.0e | Open a clip in the PC editor, delete it from the phone, then **Save** in the editor. | Saved as a new clip, no error. |
+| 4.0f | Preview a clip in the headset, then tray → **Stop clips**. | The preview stops too. |
+| 4.0g | In the PC editor with Discord closed, press **Enter**. | Refused with "Discord isn't running" in the editor, nothing plays. |
 | 4.1 | Soundboard: give a clip Ctrl+NumPad1, a category and ★. Restart Echodeck. | All three are kept, and Ctrl+NumPad1 plays the clip in-game. |
 | 4.2 | Import an MP3. | It shows up with the right length and plays into Discord. |
 | 4.3a | Delete a clip in each of four ways: the row 🗑 button (Soundboard and Replay tabs), right-click → Delete, the **Del** key, and the details panel. | Each asks for confirmation once, then the clip disappears from both tabs, the clips folder and the phone. |

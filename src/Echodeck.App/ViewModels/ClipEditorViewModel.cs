@@ -58,6 +58,18 @@ public sealed partial class ClipEditorViewModel : ObservableObject, IDisposable
         _preview.PlaybackEnded += OnPreviewEnded;
     }
 
+    /// <summary>
+    /// Plays audio into Discord and says what happened. Set by <c>AppActions</c> so the editor
+    /// gets the same "is Discord ready / in a call" checks as every other play button.
+    /// </summary>
+    public Func<AudioClip, string, float, (bool Ok, string Message)>? PlayHandler { get; set; }
+
+    /// <summary>
+    /// Applied to a brand-new clip from the replay buffer before it's saved (evens out its
+    /// loudness). Not applied when re-saving an existing clip, which was already processed.
+    /// </summary>
+    public Func<AudioClip, AudioClip>? PrepareNewClip { get; set; }
+
     /// <summary>Raised after a successful save with the file's new info.</summary>
     public event EventHandler<SoundboardClip>? Saved;
 
@@ -133,14 +145,23 @@ public sealed partial class ClipEditorViewModel : ObservableObject, IDisposable
     }
 
     [RelayCommand]
-    private void PlayToDiscord()
+    private void PlayToDiscord() => PlayAudioToDiscord(Selection());
+
+    private void PlayAudioToDiscord(AudioClip audio)
     {
+        float gain = (float)(_source?.Volume ?? 1.0);
+        if (PlayHandler is { } play)
+        {
+            var (ok, message) = play(audio, Name, gain);
+            Message = ok ? message : $"✖ {message}";
+            return;
+        }
         if (!_output.Status.Active)
         {
             Message = $"Can't play to Discord: {_output.Status.Message}";
             return;
         }
-        _mixer.PlayToDiscord(Selection(), Name, (float)(_source?.Volume ?? 1.0));
+        _mixer.PlayToDiscord(audio, Name, gain);
         Message = $"Playing {SelectionEnd - SelectionStart:0.0} s into Discord.";
     }
 
@@ -164,11 +185,15 @@ public sealed partial class ClipEditorViewModel : ObservableObject, IDisposable
             StopPreview();
             _preview.Stop(); // the main window may be previewing this very file
             var selection = Selection();
-            SoundboardClip saved = _source is not null && !asCopy
-                ? await _soundboard.ReplaceAudioAsync(_source.Id, selection, name)
+            // The clip may have been deleted (e.g. from the phone) while this editor was open:
+            // keep the user's work by saving it as a new clip instead of failing.
+            bool replace = _source is not null && !asCopy && _soundboard.Library.Find(_source.Id) is not null;
+            if (_source is null && PrepareNewClip is { } prepare) selection = await Task.Run(() => prepare(selection));
+            SoundboardClip saved = replace
+                ? await _soundboard.ReplaceAudioAsync(_source!.Id, selection, name)
                 : await _soundboard.AddAsync(selection, name, _source?.Category);
 
-            if (thenPlay) PlayToDiscord();
+            if (thenPlay) PlayAudioToDiscord(selection); // what was saved (possibly loudness-adjusted)
             Saved?.Invoke(this, saved);
             CloseRequested?.Invoke(this, EventArgs.Empty);
         }

@@ -121,9 +121,10 @@ Hotkeys work everywhere, even with CS2 fullscreen and Echodeck in the tray.
 | Default key | Action |
 |---|---|
 | **F8** | Save the last N seconds as a clip (N is set on the Replay tab, default 5) |
-| **F9** | Open the trim editor on the whole replay buffer. Drag the markers, then **Enter** plays the selection, **Ctrl+S** saves it |
+| **F9** | Open the trim editor on the whole replay buffer. Drag the markers, then **Enter** plays the selection, **Ctrl+S** saves it. Over a game in exclusive fullscreen it saves the whole buffer instead (a window would minimise the game) |
 
-Change these, or add stop clips / mute mic, on the **Hotkeys** tab. Each clip can also have its own hotkey, for example **Ctrl+NumPad1** for
+While a key is assigned, Echodeck owns it: other programs (including your game) no longer
+receive it. Change these, or add stop clips / mute mic, on the **Hotkeys** tab. Each clip can also have its own hotkey, for example **Ctrl+NumPad1** for
 "He's definitely B". Echodeck warns you if two actions share a key, or if another program has
 already taken it.
 
@@ -162,6 +163,11 @@ for devices that scanned the QR code, which contains a secret pairing code.
 
 Editor keys: **Space** preview · **Enter** play to Discord · **Ctrl+S** save · **Esc** cancel ·
 **←/→** move the start marker · **Shift+←/→** move the end marker (hold **Ctrl** for 100 ms steps).
+
+Saved replays are **tidied up automatically**: the silence before and after the talking is cut
+(a short pad is kept), and loudness is evened out (to −18 LUFS, peaks never above −1 dBFS), so a
+quiet friend and a loud one play back at a similar volume. Both can be switched off on the Replay
+tab. Clips you trim yourself in the editor keep your exact selection.
 
 Replays include **both sides** of the conversation by default: your friends, plus your mic and any
 clips you played. Clips you play into Discord also play in your headphones; your own mic never does.

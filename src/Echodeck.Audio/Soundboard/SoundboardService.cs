@@ -27,6 +27,10 @@ public sealed class SoundboardService : IDisposable
     private readonly AppPaths _paths;
     private readonly ILogger<SoundboardService> _logger;
     private readonly object _cacheLock = new();
+    // Serialises file + library changes. The PC, hotkeys and the phone can act at the same
+    // moment (e.g. two saves in the same second picking the same file name, or a delete racing
+    // a trim), and each operation must see the result of the previous one.
+    private readonly object _fileLock = new();
     private readonly Dictionary<Guid, CacheEntry> _cache = new();
     private long _cachedSamples;
     private long _useCounter;
@@ -65,16 +69,20 @@ public sealed class SoundboardService : IDisposable
     /// <summary>Saves an in-memory clip (replay capture or editor result) as a new soundboard entry.</summary>
     public Task<SoundboardClip> AddAsync(AudioClip clip, string name, string? category = null) => Task.Run(() =>
     {
-        string path = WriteNewFile(clip, name);
-        var entry = new SoundboardClip
+        SoundboardClip entry;
+        lock (_fileLock)
         {
-            Name = Path.GetFileNameWithoutExtension(path),
-            FileName = Path.GetFileName(path),
-            CreatedAt = DateTime.Now,
-            DurationSeconds = clip.Duration.TotalSeconds,
-            Category = category,
-        };
-        _library.Add(entry);
+            string path = WriteNewFile(clip, name);
+            entry = new SoundboardClip
+            {
+                Name = Path.GetFileNameWithoutExtension(path),
+                FileName = Path.GetFileName(path),
+                CreatedAt = DateTime.Now,
+                DurationSeconds = clip.Duration.TotalSeconds,
+                Category = category,
+            };
+            _library.Add(entry);
+        }
         _logger.LogInformation("Clip saved: {Name} ({Duration:F2}s)", entry.Name, entry.DurationSeconds);
         return entry;
     });
@@ -88,14 +96,18 @@ public sealed class SoundboardService : IDisposable
             try
             {
                 var clip = ClipFileLoader.Load(file);
-                string path = WriteNewFile(clip, Path.GetFileNameWithoutExtension(file));
-                var entry = new SoundboardClip
+                SoundboardClip entry;
+                lock (_fileLock)
                 {
-                    Name = Path.GetFileNameWithoutExtension(path),
-                    FileName = Path.GetFileName(path),
-                    DurationSeconds = clip.Duration.TotalSeconds,
-                };
-                _library.Add(entry);
+                    string path = WriteNewFile(clip, Path.GetFileNameWithoutExtension(file));
+                    entry = new SoundboardClip
+                    {
+                        Name = Path.GetFileNameWithoutExtension(path),
+                        FileName = Path.GetFileName(path),
+                        DurationSeconds = clip.Duration.TotalSeconds,
+                    };
+                    _library.Add(entry);
+                }
                 added.Add(entry);
                 _logger.LogInformation("Imported {File} as {Name}", file, entry.Name);
             }
@@ -120,6 +132,11 @@ public sealed class SoundboardService : IDisposable
     /// <summary>Replaces a clip's audio (after trimming) and optionally renames it; keeps its settings and date.</summary>
     public Task<SoundboardClip> ReplaceAudioAsync(Guid id, AudioClip clip, string newName) => Task.Run(() =>
     {
+        lock (_fileLock) return ReplaceAudioCore(id, clip, newName);
+    });
+
+    private SoundboardClip ReplaceAudioCore(Guid id, AudioClip clip, string newName)
+    {
         var entry = Require(id);
         string oldPath = FullPath(entry);
         string target = RenamedPath(oldPath, newName);
@@ -134,9 +151,14 @@ public sealed class SoundboardService : IDisposable
         })!;
         _logger.LogInformation("Clip updated: {Name} ({Duration:F2}s)", updated.Name, updated.DurationSeconds);
         return updated;
-    });
+    }
 
     public SoundboardClip Rename(Guid id, string newName)
+    {
+        lock (_fileLock) return RenameCore(id, newName);
+    }
+
+    private SoundboardClip RenameCore(Guid id, string newName)
     {
         var entry = Require(id);
         string oldPath = FullPath(entry);
@@ -152,10 +174,14 @@ public sealed class SoundboardService : IDisposable
 
     public void Delete(Guid id)
     {
-        var entry = Require(id);
-        File.Delete(FullPath(entry));
-        Invalidate(id);
-        _library.Remove(id);
+        SoundboardClip entry;
+        lock (_fileLock)
+        {
+            entry = Require(id);
+            File.Delete(FullPath(entry));
+            Invalidate(id);
+            _library.Remove(id);
+        }
         _logger.LogInformation("Clip deleted: {Name}", entry.Name);
     }
 
