@@ -136,13 +136,30 @@
                                     Visibility="{Binding IsClipPlaying, Converter={StaticResource BoolToVisibility}}" />
                         </WrapPanel>
                         <TextBlock Text="{Binding HotkeyHints}" Style="{StaticResource Hint}" Margin="0,2,0,14" />
-                        <TextBlock Text="Recent clips" FontWeight="SemiBold" FontSize="15" Margin="0,0,0,6" />
+                        <TextBlock Margin="0,0,0,6">
+                            <Run Text="Recent clips" FontWeight="SemiBold" FontSize="15" />
+                            <Run Text="  right-click for more · Del deletes · Ctrl/Shift-click selects several" Foreground="#777" />
+                        </TextBlock>
                     </StackPanel>
 
-                    <ListView ItemsSource="{Binding RecentClips}">
+                    <ListView x:Name="RecentList" ItemsSource="{Binding RecentClips}" SelectionMode="Extended"
+                              ToolTip="Right-click for more. Ctrl/Shift-click to select several.">
+                        <ListView.ContextMenu>
+                            <ContextMenu>
+                                <MenuItem Header="▶ Play to Discord" InputGestureText="Enter" Command="{Binding Soundboard.PlayToDiscordCommand}" />
+                                <MenuItem Header="▶ Preview on my headphones" InputGestureText="Space" Command="{Binding Soundboard.PreviewCommand}" />
+                                <MenuItem Header="✂ Trim / edit…" Command="{Binding Soundboard.EditCommand}" />
+                                <Separator />
+                                <MenuItem Header="Rename…" InputGestureText="F2" Command="{Binding Soundboard.RenameCommand}" />
+                                <MenuItem Header="Duplicate" Command="{Binding Soundboard.DuplicateCommand}" />
+                                <MenuItem Header="★ Favourite on/off" Command="{Binding Soundboard.ToggleFavoriteCommand}" />
+                                <Separator />
+                                <MenuItem Header="🗑 Delete" InputGestureText="Del" Command="{Binding Soundboard.DeleteCommand}" />
+                            </ContextMenu>
+                        </ListView.ContextMenu>
                         <ListView.View>
                             <GridView>
-                                <GridViewColumn Header="" Width="230">
+                                <GridViewColumn Header="" Width="270">
                                     <GridViewColumn.CellTemplate>
                                         <DataTemplate>
                                             <StackPanel Orientation="Horizontal">
@@ -152,6 +169,8 @@
                                                         Command="{Binding DataContext.Soundboard.PlayToDiscordCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}" />
                                                 <Button Content="✂ Edit" Style="{StaticResource RowButton}"
                                                         Command="{Binding DataContext.Soundboard.EditCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}" />
+                                                <Button Content="🗑" Style="{StaticResource RowButton}" ToolTip="Delete"
+                                                        Command="{Binding DataContext.Soundboard.DeleteCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}" />
                                             </StackPanel>
                                         </DataTemplate>
                                     </GridViewColumn.CellTemplate>
@@ -189,8 +208,22 @@
                             <TextBlock Text="{Binding CountText}" Foreground="#777" VerticalAlignment="Center" Margin="10,0,0,0" />
                         </DockPanel>
 
-                        <ListView x:Name="SoundboardList" ItemsSource="{Binding View}" SelectedItem="{Binding SelectedClip}"
-                                  VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling">
+                        <ListView x:Name="SoundboardList" ItemsSource="{Binding View}" SelectedItem="{Binding SelectedClip}" SelectionMode="Extended"
+                                  VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling"
+                                  ToolTip="Right-click for more. Ctrl/Shift-click to select several (e.g. to delete them together).">
+                            <ListView.ContextMenu>
+                            <ContextMenu>
+                                <MenuItem Header="▶ Play to Discord" InputGestureText="Enter" Command="{Binding PlayToDiscordCommand}" />
+                                <MenuItem Header="▶ Preview on my headphones" InputGestureText="Space" Command="{Binding PreviewCommand}" />
+                                <MenuItem Header="✂ Trim / edit…" Command="{Binding EditCommand}" />
+                                <Separator />
+                                <MenuItem Header="Rename…" InputGestureText="F2" Command="{Binding RenameCommand}" />
+                                <MenuItem Header="Duplicate" Command="{Binding DuplicateCommand}" />
+                                <MenuItem Header="★ Favourite on/off" Command="{Binding ToggleFavoriteCommand}" />
+                                <Separator />
+                                <MenuItem Header="🗑 Delete" InputGestureText="Del" Command="{Binding DeleteCommand}" />
+                            </ContextMenu>
+                        </ListView.ContextMenu>
                             <ListView.View>
                                 <GridView>
                                     <GridViewColumn Header="★" Width="40">
@@ -200,7 +233,7 @@
                                             </DataTemplate>
                                         </GridViewColumn.CellTemplate>
                                     </GridViewColumn>
-                                    <GridViewColumn Header="" Width="160">
+                                    <GridViewColumn Header="" Width="200">
                                         <GridViewColumn.CellTemplate>
                                             <DataTemplate>
                                                 <StackPanel Orientation="Horizontal">
@@ -208,6 +241,8 @@
                                                             Command="{Binding DataContext.PlayToDiscordCommand, RelativeSource={RelativeSource AncestorType=ListView}}" CommandParameter="{Binding}" />
                                                     <Button Content="▶ Preview" Style="{StaticResource RowButton}"
                                                             Command="{Binding DataContext.PreviewCommand, RelativeSource={RelativeSource AncestorType=ListView}}" CommandParameter="{Binding}" />
+                                                    <Button Content="🗑" Style="{StaticResource RowButton}" ToolTip="Delete"
+                                                            Command="{Binding DataContext.DeleteCommand, RelativeSource={RelativeSource AncestorType=ListView}}" CommandParameter="{Binding}" />
                                                 </StackPanel>
                                             </DataTemplate>
                                         </GridViewColumn.CellTemplate>
