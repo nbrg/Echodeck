@@ -12,8 +12,10 @@ using Microsoft.Extensions.Logging;
 
 namespace Echodeck.Remote;
 
+/// <param name="ClipPlaying">A clip is playing into Discord.</param>
+/// <param name="PreviewPlaying">A preview is playing on the PC headphones.</param>
 public sealed record RemoteState(bool MicMuted, bool DiscordOutputActive, bool CaptureActive, bool ClipPlaying,
-    long LibraryVersion, IReadOnlyList<int> SaveChoices);
+    long LibraryVersion, IReadOnlyList<int> SaveChoices, bool PreviewPlaying = false);
 
 public sealed record RemoteClip(Guid Id, string Name, string? Category, bool Favorite, double Duration, DateTime CreatedAt);
 
@@ -35,6 +37,7 @@ public interface IRemoteBackend
     IReadOnlyList<RemoteClip> GetClips();
     Task<RemoteResult> PlayClipAsync(Guid id);
     Task<RemoteResult> SaveLastAsync(int seconds);
+    /// <summary>Stops clips playing into Discord and any preview on the PC headphones.</summary>
     Task<RemoteResult> StopAsync();
     Task<RemoteResult> ToggleMuteAsync();
 

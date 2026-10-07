@@ -62,8 +62,11 @@
   #name { width: 100%; font: inherit; font-size: 17px; color: var(--text); background: var(--panel); border: 0; border-radius: 10px; padding: 12px; user-select: text; -webkit-user-select: text; }
   #wave { width: 100%; height: 170px; display: block; margin-top: 12px; border-radius: 12px; background: #111214; touch-action: none; }
   .sel-text { color: var(--muted); font-size: 14px; margin: 8px 0; text-align: center; }
-  .nudge { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
-  .nudge button { padding: 10px 4px; font-size: 14px; }
+  .nudge { display: grid; grid-template-columns: auto 1fr 1fr auto 1fr 1fr; gap: 6px; align-items: center; }
+  .nudge span { color: var(--muted); font-size: 13px; padding: 0 2px 0 4px; }
+  .nudge button { padding: 10px 2px; font-size: 14px; }
+  .actions-label { color: var(--muted); font-size: 13px; margin: 14px 0 -4px; }
+  .playing { background: var(--accent); font-weight: 600; }
   .actions { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 10px; }
   .actions button { padding: 14px 6px; font-size: 15px; }
   .hint { color: var(--muted); font-size: 12px; text-align: center; margin-top: 10px; }
@@ -91,20 +94,21 @@
   <canvas id="wave"></canvas>
   <div id="seltext" class="sel-text"></div>
   <div class="nudge">
-    <button data-n="s,-0.1">◀ start</button><button data-n="s,0.1">start ▶</button>
-    <button data-n="e,-0.1">◀ end</button><button data-n="e,0.1">end ▶</button>
+    <span>Start</span><button data-n="s,-0.1">−0.1 s</button><button data-n="s,0.1">+0.1 s</button>
+    <span>End</span><button data-n="e,-0.1">−0.1 s</button><button data-n="e,0.1">+0.1 s</button>
   </div>
+  <div class="actions-label">Listen to the selection</div>
   <div class="actions">
-    <button id="pvPc">🎧 PC headset</button>
     <button id="pvPhone">🔈 This phone</button>
-    <button id="pvDiscord" class="primary">📢 Discord</button>
+    <button id="pvPc">🎧 PC headset</button>
+    <button id="pvDiscord">📢 Into Discord</button>
   </div>
   <div class="actions">
     <button id="saveTrim" class="primary">💾 Save</button>
     <button id="saveCopy">Save copy</button>
     <button id="del" class="danger">🗑 Delete</button>
   </div>
-  <div class="hint">Drag the white handles (or tap to move the nearest one). Previews play only the selection.</div>
+  <div class="hint">Drag the white handles (or tap the waveform to move the nearest one). “This phone” and “PC headset” are private previews — only “Into Discord” is heard by friends.</div>
 </section>
 <div id="toast"></div>
 
@@ -236,6 +240,7 @@
       $('mute').textContent = s.micMuted ? '🔇 Muted' : '🎤 Mic on';
       $('mute').classList.toggle('muted', s.micMuted);
       renderSaves(s.saveChoices);
+      syncRemotePlaying(s);
       if (s.libraryVersion !== libraryVersion) { libraryVersion = s.libraryVersion; await loadClips(); }
     } catch (e) {
       if (paired) { $('dot').className = 'dot off'; $('status').textContent = 'Can\'t reach Echodeck — same Wi-Fi? Is it running?'; }
@@ -245,7 +250,7 @@
   // ---------------------------------------------------------------- trim editor
   const canvas = $('wave'), g = canvas.getContext('2d');
   let ed = null;            // { id, duration, peaks, start, end, playhead }
-  let audioCtx = null, audioBuf = null, audioFor = null, phoneSrc = null, raf = 0;
+  let raf = 0;
 
   async function openEditor(id) {
     const clip = clips.find(c => c.id === id);
@@ -258,6 +263,8 @@
       const buckets = Math.min(1200, Math.max(200, Math.round(canvas.clientWidth * (window.devicePixelRatio || 1))));
       const w = await json('/clips/' + id + '/waveform?buckets=' + buckets);
       ed = { id, duration: w.duration, peaks: w.peaks, start: 0, end: w.duration, playhead: -1 };
+      setPlaying(null);
+      preloadAudio(id).catch(() => {});
       $('status').textContent = 'Drag the handles to choose the part to keep';
       draw();
     } catch (e) { toast('Couldn\'t load clip: ' + e.message); closeEditor(); }
@@ -265,6 +272,7 @@
 
   function closeEditor() {
     stopPhone();
+    if (playing) setPlaying(null);
     document.body.classList.remove('editing');
     $('back').style.display = 'none'; $('heading').textContent = 'Echodeck';
     ed = null; refreshState();
@@ -325,42 +333,97 @@
 
   const range = () => ({ start: ed.start, end: ed.end });
 
-  $('pvPc').onclick = () => ed && act('/clips/' + ed.id + '/preview-range', range());
-  $('pvDiscord').onclick = () => ed && act('/clips/' + ed.id + '/play-range', range());
+  // Which preview is playing: 'phone' | 'pc' | 'discord' | null. The active button turns into "■ Stop".
+  let playing = null, playingSince = 0;
+  const labels = { phone: '🔈 This phone', pc: '🎧 PC headset', discord: '📢 Into Discord' };
+  const buttons = { phone: $('pvPhone'), pc: $('pvPc'), discord: $('pvDiscord') };
+  function setPlaying(kind) {
+    playing = kind; playingSince = Date.now();
+    for (const [k, b] of Object.entries(buttons)) {
+      b.textContent = k === kind ? '■ Stop' : labels[k];
+      b.classList.toggle('playing', k === kind);
+    }
+  }
+  // PC/Discord playback ends on the PC: the state poll tells us (ignore the first moment after starting).
+  function syncRemotePlaying(s) {
+    if (Date.now() - playingSince < 1200) return;
+    if ((playing === 'pc' && !s.previewPlaying) || (playing === 'discord' && !s.clipPlaying)) setPlaying(null);
+  }
 
-  // Phone speaker preview: fetch the WAV once, decode it, play just the selection.
+  $('pvPc').onclick = async () => {
+    if (!ed) return;
+    if (playing === 'pc') { await act('/stop'); setPlaying(null); return; }
+    stopPhone();
+    const r = await act('/clips/' + ed.id + '/preview-range', range());
+    if (r && r.ok) setPlaying('pc');
+  };
+  $('pvDiscord').onclick = async () => {
+    if (!ed) return;
+    if (playing === 'discord') { await act('/stop'); setPlaying(null); return; }
+    stopPhone();
+    const r = await act('/clips/' + ed.id + '/play-range', range());
+    if (r && r.ok) setPlaying('discord');
+  };
+
+  // Phone preview uses a normal <audio> element: unlike Web Audio it also plays when an iPhone's
+  // ring/silent switch is on silent. The WAV is fetched as soon as the editor opens, so a tap
+  // can start playback immediately (iOS only allows play() directly inside the tap).
+  const player = new Audio();
+  player.preload = 'auto';
+  player.setAttribute('playsinline', '');
+  let audioUrl = null, audioFor = null, audioReady = null;
+
+  function preloadAudio(id) {
+    if (audioFor === id && audioReady) return audioReady;
+    audioFor = id;
+    audioReady = (async () => {
+      const blob = await (await api('/clips/' + id + '/audio')).blob();
+      if (audioFor !== id) return;
+      if (audioUrl) URL.revokeObjectURL(audioUrl);
+      audioUrl = URL.createObjectURL(new Blob([blob], { type: 'audio/wav' }));
+      player.src = audioUrl;
+      await new Promise((ok, fail) => {
+        player.onloadedmetadata = ok; player.onerror = () => fail(new Error('this browser can\'t play the clip'));
+        player.load();
+      });
+    })();
+    audioReady.catch(() => { audioReady = null; });
+    return audioReady;
+  }
+
   function stopPhone() {
-    if (phoneSrc) { try { phoneSrc.stop(); } catch {} phoneSrc = null; }
+    if (playing === 'phone') { player.pause(); setPlaying(null); }
     cancelAnimationFrame(raf);
     if (ed) { ed.playhead = -1; draw(); }
   }
+
   $('pvPhone').onclick = async () => {
     if (!ed) return;
-    if (phoneSrc) { stopPhone(); return; }
+    if (playing === 'phone') { stopPhone(); return; }
+    if (playing) { await act('/stop'); setPlaying(null); }
     buzz();
     try {
-      audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
-      await audioCtx.resume();
-      if (audioFor !== ed.id) {
-        const bytes = await (await api('/clips/' + ed.id + '/audio')).arrayBuffer();
-        audioBuf = await new Promise((ok, fail) => audioCtx.decodeAudioData(bytes, ok, fail));
-        audioFor = ed.id;
-      }
-      const src = audioCtx.createBufferSource();
-      src.buffer = audioBuf; src.connect(audioCtx.destination);
-      const from = ed.start, len = ed.end - ed.start, t0 = audioCtx.currentTime;
-      src.start(0, from, len);
-      phoneSrc = src;
-      src.onended = () => { if (phoneSrc === src) stopPhone(); };
-      const tick = () => { if (!ed || phoneSrc !== src) return; ed.playhead = from + (audioCtx.currentTime - t0); draw(); raf = requestAnimationFrame(tick); };
+      if (!audioReady || audioFor !== ed.id) { toast('Loading audio…'); await preloadAudio(ed.id); }
+      else await audioReady;
+      player.currentTime = ed.start;
+      await player.play();
+      setPlaying('phone');
+      const tick = () => {
+        if (!ed || playing !== 'phone') return;
+        ed.playhead = player.currentTime;
+        if (player.currentTime >= ed.end || player.ended) { stopPhone(); return; }
+        draw(); raf = requestAnimationFrame(tick);
+      };
       tick();
-    } catch (e) { toast('Phone preview failed: ' + e.message); }
+    } catch (e) {
+      toast(e.name === 'NotAllowedError' ? 'Tap again to play' : 'Phone preview failed: ' + e.message);
+    }
   };
 
   async function saveTrim(asCopy) {
     if (!ed) return;
     const r = await act('/clips/' + ed.id + '/trim', { ...range(), name: $('name').value.trim() || null, asCopy });
-    if (r && r.ok) { audioFor = null; await loadClips(); closeEditor(); }
+    if (r && r.ok) { audioFor = null; audioReady = null; await loadClips(); closeEditor(); }
   }
   $('saveTrim').onclick = () => saveTrim(false);
   $('saveCopy').onclick = () => saveTrim(true);
@@ -372,13 +435,18 @@
   $('back').onclick = closeEditor;
 
   // ---------------------------------------------------------------- header buttons + polling
-  $('stop').onclick = () => { stopPhone(); act('/stop'); };
+  $('stop').onclick = () => { stopPhone(); setPlaying(null); act('/stop'); };
   $('mute').onclick = () => act('/mic/toggle-mute');
 
   if (!token) showUnpaired();
   else {
     refreshState();
-    setInterval(() => { if (!document.hidden && paired) refreshState(); }, 1500);
+    // Poll faster while editing so the Stop buttons revert promptly when playback ends.
+    let last = 0;
+    setInterval(() => {
+      const every = document.body.classList.contains('editing') ? 600 : 1500;
+      if (!document.hidden && paired && Date.now() - last >= every) { last = Date.now(); refreshState(); }
+    }, 300);
     document.addEventListener('visibilitychange', () => { if (!document.hidden) refreshState(); });
   }
 })();

@@ -287,6 +287,22 @@ headless Chromium (iPhone emulation) against the real server during development.
   library version changes.
 * **Tests.** Integration tests start the real server and check the token gate and the commands.
 
+### Installation and updates
+
+[Velopack](https://velopack.io) packages the self-contained publish folder. Its outputs are
+`Echodeck-win-Setup.exe` (a per-user install into `%LocalAppData%\Echodeck` with no admin rights,
+plus shortcuts and an Apps & Features entry), a portable zip, and full and delta packages, all
+uploaded to the GitHub Release by `release.yml`.
+
+* `Program.Main` runs `VelopackApp.Build().Run()` before WPF starts, which handles
+  install, update and uninstall hooks. The uninstall hook removes the start-with-Windows entry.
+* `UpdateService` checks `GithubSource` (pre-releases included) 15 s after startup and then every
+  6 h, and downloads quietly.
+* A downloaded update is applied by **Restart to update** (`ApplyUpdatesAndRestart`) or silently
+  after a normal exit (`WaitExitThenApplyUpdates`). It never restarts on its own mid-call.
+* The installed exe path is stable across versions. So the firewall rule for the phone remote and
+  the start-with-Windows entry keep working after updates.
+
 ### Single instance
 
 A named mutex (`Local\Echodeck.SingleInstance`) allows one copy per Windows session. A second
@@ -372,4 +388,5 @@ Runtime data lives in `%AppData%\Echodeck\`:
 | 4 | Soundboard library (`clips.json`): categories, favourites, per-clip volume and hotkey, search/sort/filter, import, duplicate | done |
 | 5 | Tabbed UI (Replay · Soundboard · Audio · Hotkeys · Phone · Setup · Settings), tray, start minimised or with Windows, pause recording | done |
 | + | Phone/tablet remote (LAN web page, QR pairing) | done |
-| later | Installer/auto-update (Velopack), Stream Deck/MIDI triggers, effects, silence trimming, normalisation, transcription | |
+| + | Installer and in-place auto-update (Velopack + GitHub Releases) | done |
+| later | Stream Deck/MIDI triggers, effects, silence trimming, normalisation, transcription | |

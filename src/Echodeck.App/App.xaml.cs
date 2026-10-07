@@ -105,6 +105,17 @@ public partial class App : Application
         // Phone / tablet remote.
         _services.GetRequiredService<RemoteHost>().Start();
 
+        // In-place updates from GitHub Releases (installed copies only).
+        _updates = _services.GetRequiredService<UpdateService>();
+        _updates.UpdateDownloaded += (_, version) =>
+            tray.ShowBalloon("Echodeck update ready", $"Version {version} installs when you quit Echodeck, or use Settings → Restart to update.");
+        _updates.BeforeRestart += (_, _) =>
+        {
+            settings.Flush();
+            tray.Dispose();
+        };
+        _updates.Start();
+
         try { StartupRegistration.RefreshPathIfEnabled(); }
         catch (Exception ex) { _logger.LogWarning(ex, "Could not update the start-with-Windows entry"); }
 
@@ -114,6 +125,7 @@ public partial class App : Application
     }
 
     private bool _exiting;
+    private UpdateService? _updates;
     private bool _windowClosed;
 
     /// <summary>The one real way out: tray "Exit", or closing the window when close-to-tray is off.</summary>
@@ -127,6 +139,7 @@ public partial class App : Application
             window.IsExiting = true;
             window.Close();
         }
+        _updates?.ApplyPendingOnExit();
         Shutdown();
     }
 
@@ -176,6 +189,7 @@ public partial class App : Application
         services.AddSingleton<HotkeyCoordinator>();
         services.AddSingleton<TrayIconService>();
         services.AddSingleton<RemoteHost>();
+        services.AddSingleton<UpdateService>();
 
         // View models
         services.AddSingleton<AudioPageViewModel>();

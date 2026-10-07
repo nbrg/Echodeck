@@ -127,7 +127,8 @@ public sealed class RemoteHost : IRemoteBackend, IDisposable, IAsyncDisposable
             CaptureActive: _capture.Status.State == CaptureState.Capturing,
             ClipPlaying: _mixer.IsClipPlaying,
             LibraryVersion: _soundboard.Library.Version,
-            SaveChoices: choices);
+            SaveChoices: choices,
+            PreviewPlaying: _preview.IsPlaying);
     }
 
     public IReadOnlyList<RemoteClip> GetClips() =>
@@ -152,6 +153,7 @@ public sealed class RemoteHost : IRemoteBackend, IDisposable, IAsyncDisposable
     public Task<RemoteResult> StopAsync() => OnUi(() =>
     {
         _actions.StopClips();
+        _preview.Stop();
         return Task.FromResult(new RemoteResult(true, "Stopped"));
     });
 

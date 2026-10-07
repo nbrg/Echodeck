@@ -101,6 +101,15 @@ Preparation: VB-CABLE installed. Windows output and Discord output on your heads
 | P.3 | Click "New pairing code". | The old phone shows "Not paired" until it re-scans. |
 | P.4 | Open the link without the `#t=` part on another device. | It shows "Not paired" and can't trigger anything. |
 
+## Install and update checklist
+
+| # | Step | Expected |
+|---|---|---|
+| U.1 | Run `Echodeck-win-Setup.exe`. | Installs without admin rights, adds Start menu and desktop shortcuts, and starts. Settings shows "Echodeck x.y.z" with no "portable" note. Existing clips and settings are still there. |
+| U.2 | After a newer release is published, wait about 15 s after start, or click **Check for updates**. | It downloads and shows a tray balloon "update ready". **Restart to update** restarts into the new version. |
+| U.3 | Let an update download, then quit from the tray. | The next start is already the new version. |
+| U.4 | Uninstall from Windows Settings → Apps. | Echodeck is removed, the start-with-Windows entry is gone, and `%AppData%\Echodeck` (your clips) remains. |
+
 ## Full routing checklist (Phases 2–5)
 
 | # | Scenario | Pass criteria |

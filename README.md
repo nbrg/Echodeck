@@ -19,29 +19,42 @@ working the whole time.
 >
 > See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the design.
 
-## Download and run (no build needed)
+## Install (no build needed)
 
-1. Open the repository's **Releases** page and download `Echodeck-<version>-win-x64.exe`.
-2. Double-click it. That's the whole app: no installer, and no .NET install, because the runtime is
-   bundled inside the exe. Settings, clips and logs go to `%AppData%\Echodeck`.
-3. The exe isn't code-signed yet, so Windows SmartScreen may show "Windows protected your PC".
+1. Open the repository's **Releases** page and download **`Echodeck-win-Setup.exe`**.
+2. Run it. Echodeck installs for your Windows user, with no admin rights needed, into
+   `%LocalAppData%\Echodeck`. It adds Start menu and desktop shortcuts and starts.
+3. The installer isn't code-signed yet, so SmartScreen may say "Windows protected your PC".
    Click **More info → Run anyway**.
 
-To uninstall, delete the exe and the `%AppData%\Echodeck` folder.
+**Updates are automatic.** Echodeck checks GitHub Releases in the background and downloads new
+versions quietly. A downloaded update installs when you click **Settings → Restart to update**, or
+the next time you quit Echodeck. It never restarts on its own, so a call is never interrupted.
+Clips and settings in `%AppData%\Echodeck` are kept.
+
+Coming from an older single-exe version? Install once with the Setup file, then delete the old
+exe(s).
+
+To uninstall, use Windows **Settings → Apps → Echodeck → Uninstall**. To also remove your clips,
+delete `%AppData%\Echodeck`. If you'd rather not install, `Echodeck-win-Portable.zip` runs from any
+folder but doesn't update itself.
 
 ### Making a release (maintainers)
 
-The `release` GitHub Actions workflow builds the single-file exe on Windows, runs the tests, and
-attaches the exe plus a `.sha256` checksum to a new GitHub Release. Start it either way:
+The `release` GitHub Actions workflow builds and tests on Windows, then packages the app with
+[Velopack](https://velopack.io). It produces the installer, the portable zip, and full and delta
+update packages, and attaches all of them to a new GitHub Release. Installed copies pick the
+release up automatically. Start it either way:
 
 * **From GitHub:** go to **Actions → release → Run workflow** and enter a version such as
-  `0.1.0-preview.1`.
-* **From git:** `git tag v0.2.0 && git push origin v0.2.0`
+  `0.4.0-preview.2`.
+* **From git:** `git tag v0.4.0 && git push origin v0.4.0`
 
-A version with a `-` suffix is published as a pre-release. Every normal push also uploads a test
+Versions must increase. A version with a `-` suffix is published as a pre-release; the app
+currently follows pre-releases too. Every normal push also uploads a portable single-exe test
 build as a workflow artifact (open the Actions run, then **Artifacts**).
 
-To build the same exe locally:
+To build the single exe locally:
 
 ```powershell
 dotnet publish src/Echodeck.App -p:PublishProfile=win-x64

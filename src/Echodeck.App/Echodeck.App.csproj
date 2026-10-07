@@ -12,6 +12,8 @@
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <!-- Exe / taskbar / Alt-Tab icon. Regenerate with: python tools/make_icon.py src/Echodeck.App/Assets -->
     <ApplicationIcon>Assets\echodeck.ico</ApplicationIcon>
+    <!-- Our own Main (Program.cs) runs the Velopack installer/update hooks before WPF starts. -->
+    <StartupObject>Echodeck.App.Program</StartupObject>
   </PropertyGroup>
 
   <ItemGroup>
@@ -26,6 +28,7 @@
   <ItemGroup>
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.2.2" />
     <PackageReference Include="QRCoder" Version="1.6.0" />
+    <PackageReference Include="Velopack" Version="1.2.161" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="8.0.1" />
     <PackageReference Include="Microsoft.Extensions.Logging" Version="8.0.1" />
     <PackageReference Include="Microsoft.Extensions.Logging.Debug" Version="8.0.1" />
