@@ -63,6 +63,9 @@ public sealed partial class AudioPageViewModel : ObservableObject, IDisposable
     [ObservableProperty] private bool _allowClipOverlap;
     [ObservableProperty] private bool _duckingEnabled;
     [ObservableProperty] private double _duckingDb;
+    [ObservableProperty] private bool _hearClipsInHeadphones;
+    [ObservableProperty] private double _headphoneClipVolume; // percent
+    [ObservableProperty] private bool _includeOwnAudioInReplays;
 
     public bool IsLoopbackDeviceEnabled => SelectedCaptureMode?.Value == DiscordCaptureMode.SelectedDevice;
 
@@ -124,6 +127,9 @@ public sealed partial class AudioPageViewModel : ObservableObject, IDisposable
         AllowClipOverlap = s.AllowClipOverlap;
         DuckingEnabled = s.DuckingEnabled;
         DuckingDb = s.DuckingDb;
+        HearClipsInHeadphones = s.HearClipsInHeadphones;
+        HeadphoneClipVolume = Math.Round(s.HeadphoneClipGain * 100);
+        IncludeOwnAudioInReplays = s.IncludeOwnAudioInReplays;
         _loading = false;
     }
 
@@ -145,6 +151,9 @@ public sealed partial class AudioPageViewModel : ObservableObject, IDisposable
     partial void OnAllowClipOverlapChanged(bool value) => Save(s => s.AllowClipOverlap = value);
     partial void OnDuckingEnabledChanged(bool value) => Save(s => s.DuckingEnabled = value);
     partial void OnDuckingDbChanged(double value) => Save(s => s.DuckingDb = value);
+    partial void OnHearClipsInHeadphonesChanged(bool value) => Save(s => s.HearClipsInHeadphones = value);
+    partial void OnHeadphoneClipVolumeChanged(double value) => Save(s => s.HeadphoneClipGain = value / 100);
+    partial void OnIncludeOwnAudioInReplaysChanged(bool value) => Save(s => s.IncludeOwnAudioInReplays = value);
 
     private void OnDevicesChanged(object? sender, EventArgs e) => _dispatcher.BeginInvoke(RefreshDevices);
 

@@ -68,6 +68,9 @@ Preparation: VB-CABLE installed. Windows output and Discord output on your heads
 | 2.14 | Press F2 / Del on a clip, or use the Rename / 🗑 buttons. | Rename and delete work, delete asks for confirmation, and the files change in the clips folder. |
 | 2.15 | Start Echodeck a second time. | The existing window comes to the front and no second copy runs (check Task Manager). |
 | 2.16 | Check the taskbar and Alt+Tab. | The Echodeck icon is shown, not the default window icon. |
+| 2.17a | Talk at the same time as a friend, then **💾 Save last 5 s** and preview it. | Both voices are in the clip, in sync. With "Include my side in replays" off, only the friend is in it. |
+| 2.17b | **▶ Replay last 5 s to Discord**. | You hear the replay in your headphones and friends hear it in Discord. With "Hear clips… in my headphones" off, only friends hear it. You never hear your own live mic. |
+| 2.17c | Unplug the headset, play two clips to Discord, then plug it back in. | No burst of old clips when the headset returns. |
 | 2.17 | Talk for 2 hours, then **Copy diagnostics**. | The "Mic buffer" line shows a few underruns or drift corrections at most, with no growing latency. Memory is flat. |
 
 ## Full routing checklist (Phases 2–5)

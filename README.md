@@ -106,6 +106,11 @@ it. It checks the devices Discord is actually using, not just Echodeck's own set
 Editor keys: **Space** preview · **Enter** play to Discord · **Ctrl+S** save · **Esc** cancel ·
 **←/→** move the start marker · **Shift+←/→** move the end marker (hold **Ctrl** for 100 ms steps).
 
+Replays include **both sides** of the conversation by default: your friends (from Discord) plus what
+you sent to Discord (your mic and any clips you played), lined up in time. Clips you play into
+Discord are also played on your headphones, but your own mic never is. Both options are on the
+Audio tab.
+
 Only one Echodeck runs at a time. Starting it again brings the open window to the front.
 
 Clips are saved in `%AppData%\Echodeck\clips`, logs in `%AppData%\Echodeck\logs`. Testing checklists

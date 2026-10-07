@@ -69,6 +69,7 @@ public sealed class DiagnosticsReport
         Section("Microphone → Discord");
         sb.AppendLine($"Microphone: {(_mic.Status.Active ? "active" : "inactive")} {_mic.Status.DeviceName} — {_mic.Status.Message}");
         sb.AppendLine($"Discord output: {(_output.Status.Active ? "active" : "inactive")} {_output.Status.DeviceName} — {_output.Status.Message}");
+        sb.AppendLine($"Include own audio in replays: {_settings.Current.IncludeOwnAudioInReplays}, hear clips in headphones: {_settings.Current.HearClipsInHeadphones}");
         sb.AppendLine($"Mic buffer: {_jitter.BufferedFrames} frames (target {_jitter.TargetFrames}), underruns {_jitter.Underruns}, drift corrections {_jitter.CorrectedFrames} frames, overflow drops {_jitter.DroppedOnOverflowFrames} frames");
 
         Section("Setup check");

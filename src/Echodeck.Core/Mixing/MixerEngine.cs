@@ -2,6 +2,9 @@ using Echodeck.Core.Audio;
 
 namespace Echodeck.Core.Mixing;
 
+/// <summary>Receives a copy of rendered audio (called on the render thread; must be quick).</summary>
+public delegate void AudioTap(ReadOnlySpan<float> samples);
+
 /// <summary>
 /// The audio that goes to Discord: live mic + soundboard/replay clips → limiter.
 /// <para>
@@ -16,6 +19,10 @@ namespace Echodeck.Core.Mixing;
 public sealed class MixerEngine
 {
     private static readonly TimeSpan ReplaceFade = TimeSpan.FromMilliseconds(30);
+
+    /// <summary>Backstop: voices are only removed while rendering, so if the output is down they
+    /// must not pile up. The oldest is dropped beyond this many.</summary>
+    public const int MaxVoices = 16;
 
     private readonly AudioFormat _format;
     private readonly MicJitterBuffer _mic;
@@ -33,6 +40,7 @@ public sealed class MixerEngine
     private volatile bool _micMuted;
     private volatile bool _allowOverlap;
     private volatile bool _duckingEnabled;
+    private volatile AudioTap? _outputTap;
 
     public MixerEngine(AudioFormat format, MicJitterBuffer mic)
     {
@@ -59,9 +67,14 @@ public sealed class MixerEngine
     /// <summary>Mic level while a clip plays, as a linear factor (0.4 ≈ −8 dB).</summary>
     public float DuckingGain { get => _duckingGain; set => _duckingGain = Math.Clamp(value, 0f, 1f); }
 
-    public bool IsClipPlaying
+    /// <summary>Optional copy of every rendered block (e.g. to record "my side" for replays).</summary>
+    public AudioTap? OutputTap { get => _outputTap; set => _outputTap = value; }
+
+    public bool IsClipPlaying => VoiceCount > 0;
+
+    public int VoiceCount
     {
-        get { lock (_voicesLock) return _voices.Count > 0; }
+        get { lock (_voicesLock) return _voices.Count; }
     }
 
     /// <summary>Starts a clip. Unless overlap is allowed, any playing clip fades out (30 ms) first.</summary>
@@ -72,8 +85,15 @@ public sealed class MixerEngine
         {
             if (!_allowOverlap)
                 foreach (var v in _voices) v.Stop(ReplaceFade);
+            if (_voices.Count >= MaxVoices) _voices.RemoveAt(0);
             _voices.Add(voice);
         }
+    }
+
+    /// <summary>Drops all voices immediately (no fade) — used when the output stream stops.</summary>
+    public void Clear()
+    {
+        lock (_voicesLock) _voices.Clear();
     }
 
     public void StopAll()
@@ -123,6 +143,7 @@ public sealed class MixerEngine
 
         _limiter.Process(output);
         OutgoingMeter.Process(output);
+        _outputTap?.Invoke(output);
     }
 
     private static void EnsureCapacity(ref float[] buffer, int length)
