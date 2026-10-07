@@ -113,6 +113,7 @@ public sealed class AppSettings
         DuckingDb = Clamp(DuckingDb, -30, 0, -8);
         HeadphoneClipGain = Clamp(HeadphoneClipGain, 0, 1.5, 0.8);
         Hotkeys ??= HotkeyActions.DefaultBindings();
+        HotkeyActions.Migrate(Hotkeys);
         RemotePort = RemotePort is >= 1024 and <= 65535 ? RemotePort : 5800;
         if (string.IsNullOrWhiteSpace(RemoteToken) || RemoteToken.Length < 16) RemoteToken = NewToken();
     }

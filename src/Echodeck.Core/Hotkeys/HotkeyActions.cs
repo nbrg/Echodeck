@@ -8,9 +8,6 @@ public sealed record HotkeyActionInfo(string Id, string Name, string? DefaultGes
 /// </summary>
 public static class HotkeyActions
 {
-    public const string Replay3 = "replay:3";
-    public const string Replay5 = "replay:5";
-    public const string Replay10 = "replay:10";
     public const string SaveLast = "save:last";
     public const string OpenEditor = "editor:open";
     public const string StopClips = "clips:stop";
@@ -22,11 +19,8 @@ public static class HotkeyActions
     /// <summary>The fixed (non-clip) actions, in display order, with their default shortcuts.</summary>
     public static IReadOnlyList<HotkeyActionInfo> Global { get; } = new[]
     {
-        new HotkeyActionInfo(Replay5, "Replay last 5 s into Discord", "F8"),
-        new HotkeyActionInfo(OpenEditor, "Open replay editor (whole buffer)", "F9"),
-        new HotkeyActionInfo(Replay3, "Replay last 3 s into Discord", null),
-        new HotkeyActionInfo(Replay10, "Replay last 10 s into Discord", null),
-        new HotkeyActionInfo(SaveLast, "Save last N s as a clip (no editing)", null),
+        new HotkeyActionInfo(SaveLast, "Save last N s as a clip", "F8"),
+        new HotkeyActionInfo(OpenEditor, "Open trim editor on the whole replay buffer", "F9"),
         new HotkeyActionInfo(StopClips, "Stop playing clips", null),
         new HotkeyActionInfo(ToggleMute, "Mute / unmute microphone", null),
         new HotkeyActionInfo(ShowWindow, "Show Echodeck window", null),
@@ -40,9 +34,21 @@ public static class HotkeyActions
         return actionId.StartsWith(ClipPrefix, StringComparison.Ordinal) && Guid.TryParse(actionId[ClipPrefix.Length..], out clipId);
     }
 
-    /// <summary>Seconds for a replay:N action, else null.</summary>
-    public static int? ReplaySeconds(string actionId) =>
-        actionId.StartsWith("replay:", StringComparison.Ordinal) && int.TryParse(actionId[7..], out int s) ? s : null;
+    /// <summary>
+    /// Removes bindings for actions that no longer exist (the old "replay:N" quick-replay actions).
+    /// If the user had a replay shortcut and "save" has none yet, the shortcut moves to "save",
+    /// so their F8 keeps doing something sensible.
+    /// </summary>
+    public static void Migrate(Dictionary<string, string> bindings)
+    {
+        var obsolete = bindings.Keys.Where(k => Global.All(a => a.Id != k)).ToList();
+        foreach (string id in obsolete)
+        {
+            if (id.StartsWith("replay:", StringComparison.Ordinal) && !bindings.ContainsKey(SaveLast))
+                bindings[SaveLast] = bindings[id];
+            bindings.Remove(id);
+        }
+    }
 
     public static Dictionary<string, string> DefaultBindings() =>
         Global.Where(a => a.DefaultGesture is not null).ToDictionary(a => a.Id, a => a.DefaultGesture!);

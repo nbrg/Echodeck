@@ -59,13 +59,13 @@ public class HotkeyConflictTests
         var f8 = HotkeyGesture.ParseOrNull("F8")!.Value;
         var conflicts = HotkeyConflicts.Find(new[]
         {
-            new HotkeyBinding("replay:5", "Replay 5", f8),
+            new HotkeyBinding("save:last", "Save", f8),
             new HotkeyBinding("clip:x", "He's definitely B", f8),
-            new HotkeyBinding("replay:3", "Replay 3", HotkeyGesture.ParseOrNull("F7")!.Value),
+            new HotkeyBinding("clips:stop", "Stop", HotkeyGesture.ParseOrNull("F7")!.Value),
         });
         Assert.Equal(2, conflicts.Count);
-        Assert.Contains("He's definitely B", conflicts["replay:5"]);
-        Assert.False(conflicts.ContainsKey("replay:3"));
+        Assert.Contains("He's definitely B", conflicts["save:last"]);
+        Assert.False(conflicts.ContainsKey("clips:stop"));
     }
 
     [Fact]
@@ -74,8 +74,18 @@ public class HotkeyConflictTests
         var id = Guid.NewGuid();
         Assert.True(HotkeyActions.TryGetClipId(HotkeyActions.ForClip(id), out var parsed));
         Assert.Equal(id, parsed);
-        Assert.Equal(5, HotkeyActions.ReplaySeconds(HotkeyActions.Replay5));
-        Assert.Null(HotkeyActions.ReplaySeconds(HotkeyActions.StopClips));
+    }
+
+    [Fact]
+    public void Migrate_MovesOldReplayShortcutToSave_AndDropsUnknownActions()
+    {
+        var bindings = new Dictionary<string, string> { ["replay:5"] = "F8", ["replay:10"] = "F10", ["editor:open"] = "F9" };
+        HotkeyActions.Migrate(bindings);
+        Assert.Equal(new Dictionary<string, string> { [HotkeyActions.SaveLast] = "F8", [HotkeyActions.OpenEditor] = "F9" }, bindings);
+
+        var keepsExistingSave = new Dictionary<string, string> { ["replay:5"] = "F8", [HotkeyActions.SaveLast] = "F7" };
+        HotkeyActions.Migrate(keepsExistingSave);
+        Assert.Equal(new Dictionary<string, string> { [HotkeyActions.SaveLast] = "F7" }, keepsExistingSave);
     }
 }
 
@@ -86,8 +96,8 @@ public class SettingsCloneTests
     {
         var original = new AppSettings();
         var copy = original.Clone();
-        copy.Hotkeys["replay:5"] = "F2";
-        Assert.Equal("F8", original.Hotkeys["replay:5"]);
+        copy.Hotkeys[HotkeyActions.SaveLast] = "F2";
+        Assert.Equal("F8", original.Hotkeys[HotkeyActions.SaveLast]);
     }
 }
 

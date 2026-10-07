@@ -17,12 +17,22 @@ public sealed class RemoteServerTests : IAsyncLifetime
     {
         public readonly Guid ClipId = Guid.NewGuid();
         public readonly List<string> Calls = new();
-        public RemoteState GetState() => new(false, true, true, false, 7, new[] { 5, 10 });
-        public IReadOnlyList<RemoteClip> GetClips() => new[] { new RemoteClip(ClipId, "Trust me", "CS2", true, 1.5) };
-        public Task<RemoteResult> PlayClipAsync(Guid id) { Calls.Add("play:" + id); return Task.FromResult(new RemoteResult(true, "ok")); }
-        public Task<RemoteResult> ReplayAsync(int seconds) { Calls.Add("replay:" + seconds); return Task.FromResult(new RemoteResult(true, "ok")); }
-        public Task<RemoteResult> StopAsync() { Calls.Add("stop"); return Task.FromResult(new RemoteResult(true, "ok")); }
-        public Task<RemoteResult> ToggleMuteAsync() { Calls.Add("mute"); return Task.FromResult(new RemoteResult(true, "ok")); }
+        private Task<RemoteResult> Ok(string call, Guid? id = null) { Calls.Add(call); return Task.FromResult(new RemoteResult(true, "ok", id)); }
+
+        public RemoteState GetState() => new(false, true, true, false, 7, new[] { 5, 30 });
+        public IReadOnlyList<RemoteClip> GetClips() => new[] { new RemoteClip(ClipId, "Trust me", "CS2", true, 1.5, DateTime.Now) };
+        public Task<RemoteResult> PlayClipAsync(Guid id) => Ok("play:" + id);
+        public Task<RemoteResult> SaveLastAsync(int seconds) => Ok("save:" + seconds, ClipId);
+        public Task<RemoteResult> StopAsync() => Ok("stop");
+        public Task<RemoteResult> ToggleMuteAsync() => Ok("mute");
+        public Task<RemoteWaveform?> GetWaveformAsync(Guid id, int buckets) =>
+            Task.FromResult<RemoteWaveform?>(id == ClipId ? new RemoteWaveform(1.5, Enumerable.Repeat(50, buckets).ToArray()) : null);
+        public Task<byte[]?> GetAudioAsync(Guid id) => Task.FromResult<byte[]?>(id == ClipId ? new byte[] { 82, 73, 70, 70 } : null);
+        public Task<RemoteResult> PlayRangeToDiscordAsync(Guid id, RangeRequest r) => Ok($"discord:{r.Start}-{r.End}");
+        public Task<RemoteResult> PreviewRangeOnPcAsync(Guid id, RangeRequest r) => Ok($"pc:{r.Start}-{r.End}");
+        public Task<RemoteResult> SaveTrimAsync(Guid id, RangeRequest r) => Ok($"trim:{r.Start}-{r.End}:{r.Name}:{r.AsCopy}");
+        public Task<RemoteResult> RenameAsync(Guid id, string name) => Ok("rename:" + name);
+        public Task<RemoteResult> DeleteAsync(Guid id) => Ok("delete");
     }
 
     public async Task InitializeAsync()
@@ -74,9 +84,36 @@ public sealed class RemoteServerTests : IAsyncLifetime
         Assert.Equal("Trust me", Assert.Single(clips!).Name);
 
         Assert.True((await _http.SendAsync(Authed(HttpMethod.Post, $"/api/clips/{_backend.ClipId}/play"))).IsSuccessStatusCode);
-        Assert.True((await _http.SendAsync(Authed(HttpMethod.Post, "/api/replay/500"))).IsSuccessStatusCode);
+        var saved = await (await _http.SendAsync(Authed(HttpMethod.Post, "/api/save/500"))).Content.ReadFromJsonAsync<RemoteResult>();
+        Assert.Equal(_backend.ClipId, saved!.ClipId);
         Assert.True((await _http.SendAsync(Authed(HttpMethod.Post, "/api/mic/toggle-mute"))).IsSuccessStatusCode);
-        Assert.Equal(new[] { "play:" + _backend.ClipId, "replay:60", "mute" }, _backend.Calls);
+        Assert.Equal(new[] { "play:" + _backend.ClipId, "save:120", "mute" }, _backend.Calls);
+    }
+
+    [Fact]
+    public async Task TrimEditorEndpoints_Work()
+    {
+        var wave = await (await _http.SendAsync(Authed(HttpMethod.Get, $"/api/clips/{_backend.ClipId}/waveform?buckets=80")))
+            .Content.ReadFromJsonAsync<RemoteWaveform>();
+        Assert.Equal(80, wave!.Peaks.Count);
+
+        var audio = await _http.SendAsync(Authed(HttpMethod.Get, $"/api/clips/{_backend.ClipId}/audio"));
+        Assert.Equal("audio/wav", audio.Content.Headers.ContentType?.MediaType);
+        Assert.Equal(HttpStatusCode.NotFound, (await _http.SendAsync(Authed(HttpMethod.Get, $"/api/clips/{Guid.NewGuid()}/audio"))).StatusCode);
+
+        HttpRequestMessage Json(string path, object body)
+        {
+            var req = Authed(HttpMethod.Post, path);
+            req.Content = JsonContent.Create(body);
+            return req;
+        }
+        var id = _backend.ClipId;
+        Assert.True((await _http.SendAsync(Json($"/api/clips/{id}/trim", new { start = 0.5, end = 1.25, name = "Short", asCopy = true }))).IsSuccessStatusCode);
+        Assert.True((await _http.SendAsync(Json($"/api/clips/{id}/preview-range", new { start = 0.1, end = 0.2 }))).IsSuccessStatusCode);
+        Assert.True((await _http.SendAsync(Json($"/api/clips/{id}/play-range", new { start = 0.1, end = 0.2 }))).IsSuccessStatusCode);
+        Assert.True((await _http.SendAsync(Json($"/api/clips/{id}/rename", new { name = "New" }))).IsSuccessStatusCode);
+        Assert.True((await _http.SendAsync(Authed(HttpMethod.Post, $"/api/clips/{id}/delete"))).IsSuccessStatusCode);
+        Assert.Equal(new[] { "trim:0.5-1.25:Short:True", "pc:0.1-0.2", "discord:0.1-0.2", "rename:New", "delete" }, _backend.Calls);
     }
 
     public async Task DisposeAsync()

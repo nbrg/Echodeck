@@ -138,9 +138,6 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     private int QuickSeconds => SelectedQuickDuration?.Value ?? 5;
 
     [RelayCommand]
-    private void ReplayLastToDiscord() => _actions.ReplayToDiscord(QuickSeconds);
-
-    [RelayCommand]
     private Task SaveLastAsync() => _actions.SaveLastAsync(QuickSeconds);
 
     [RelayCommand]

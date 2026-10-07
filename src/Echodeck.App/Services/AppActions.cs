@@ -7,6 +7,7 @@ using Echodeck.Audio.Soundboard;
 using Echodeck.Core.Audio;
 using Echodeck.Core.Hotkeys;
 using Echodeck.Core.Settings;
+using Echodeck.Core.Soundboard;
 using Microsoft.Extensions.Logging;
 
 namespace Echodeck.App.Services;
@@ -52,7 +53,6 @@ public sealed class AppActions
     {
         try
         {
-            if (HotkeyActions.ReplaySeconds(actionId) is int seconds) { ReplayToDiscord(seconds); return; }
             if (HotkeyActions.TryGetClipId(actionId, out var clipId)) { await PlayClipAsync(clipId); return; }
             switch (actionId)
             {
@@ -71,23 +71,15 @@ public sealed class AppActions
         }
     }
 
-    public bool ReplayToDiscord(int seconds)
-    {
-        if (!EnsureDiscordOutput()) return false;
-        AudioClip clip = _replay.CaptureLast(TimeSpan.FromSeconds(seconds));
-        if (clip.FrameCount == 0) { Notify("Nothing in the replay buffer yet."); return false; }
-        _mixer.PlayToDiscord(clip, $"last {seconds}s");
-        Notify($"Replaying the last {seconds} s into Discord.");
-        return true;
-    }
-
-    public async Task SaveLastAsync(int? seconds = null)
+    /// <summary>Saves the last N seconds (default: the configured length) as a new clip. Returns it, or null if the buffer is empty.</summary>
+    public async Task<SoundboardClip?> SaveLastAsync(int? seconds = null)
     {
         int s = seconds ?? _settings.Current.QuickSaveSeconds;
         AudioClip clip = _replay.CaptureLast(TimeSpan.FromSeconds(s));
-        if (clip.FrameCount == 0) { Notify("Nothing in the replay buffer yet."); return; }
+        if (clip.FrameCount == 0) { Notify("Nothing in the replay buffer yet."); return null; }
         var saved = await _soundboard.AddAsync(clip, $"Replay {clip.CapturedAt.LocalDateTime:yyyy-MM-dd HH-mm-ss}");
         Notify($"Saved \"{saved.Name}\" ({saved.DurationSeconds:F1} s).");
+        return saved;
     }
 
     /// <summary>Freezes the whole replay buffer and opens the trim editor on it.</summary>

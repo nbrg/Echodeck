@@ -77,9 +77,9 @@ Preparation: VB-CABLE installed. Windows output and Discord output on your heads
 
 | # | Step | Expected |
 |---|---|---|
-| 3.1 | Start CS2 (fullscreen and borderless), a friend talks, press **F8**. | Friends hear the last 5 s, CS2 stays focused, and you hear it in your headset. |
+| 3.1 | Start CS2 (fullscreen and borderless), a friend talks, press **F8**. | A new clip appears (Replay tab, Soundboard, phone 🕒 Recent). CS2 stays focused. |
 | 3.2 | In CS2, press **F9**. | The editor opens on top with the whole buffer. Drag to trim, **Enter** plays, **Ctrl+S** saves, **Esc** closes. |
-| 3.3 | Hotkeys tab: set "Replay last 10 s" to F8. | Both rows show the conflict, and only the first one fires. |
+| 3.3 | Hotkeys tab: set "Stop playing clips" to F8 as well. | Both rows show the conflict, and only the first one fires. |
 | 3.4 | Set a hotkey that another app already uses (e.g. one Discord's keybinds own). | The row says it's taken by another program. |
 | 3.5 | Try to set plain `A`. | Rejected: letters need Ctrl or Alt. |
 | 3.6 | Mash F8 ten times quickly. | No crash or pile-up. A new replay replaces the playing one unless overlap is on. |
@@ -94,7 +94,9 @@ Preparation: VB-CABLE installed. Windows output and Discord output on your heads
 | 5.2 | Tray menu: Mute, Record replay buffer, Exit. | The checkmarks match the app. Exit really quits (check Task Manager). |
 | 5.3 | Settings: start with Windows plus start minimised, then reboot. | Echodeck starts in the tray. |
 | 5.4 | Settings: untick "Record the replay buffer". | Capture shows **Paused**. Ticking it again resumes. |
-| P.1 | Phone tab: enable, allow the firewall prompt, scan the QR code. | The page shows your clips. Tapping one plays it into Discord. Replay, Stop and Mute work. |
+| P.1 | Phone tab: enable, allow the firewall prompt, scan the QR code. | The page shows your clips. Tapping one plays it into Discord. Stop and Mute work. |
+| P.1a | In game, a friend says something, then tap **💾 Save last 5 s** on the phone. | The trim editor opens on the phone with the waveform. Drag the handles; **🎧 PC headset** plays the selection in your headset; **📢 Discord** plays it to friends; **💾 Save** trims it. The PC shows the new clip too. |
+| P.1b | ✂ on an older clip: rename it, **Save copy**, then **🗑 Delete** the original. | The copy appears under the new name and the original is gone, on both phone and PC. |
 | P.2 | Add to Home Screen on the iPad. | Opens full-screen and stays paired. |
 | P.3 | Click "New pairing code". | The old phone shows "Not paired" until it re-scans. |
 | P.4 | Open the link without the `#t=` part on another device. | It shows "Not paired" and can't trigger anything. |

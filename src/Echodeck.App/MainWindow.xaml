@@ -123,14 +123,11 @@
                 <DockPanel>
                     <StackPanel DockPanel.Dock="Top">
                         <WrapPanel>
-                            <Button Command="{Binding ReplayLastToDiscordCommand}" Style="{StaticResource BigButton}">
-                                <TextBlock><Run Text="▶ Replay last" /> <Run Text="{Binding SelectedQuickDuration.Value, Mode=OneWay}" /><Run Text=" s to Discord" /></TextBlock>
-                            </Button>
                             <Button Command="{Binding SaveLastCommand}" Style="{StaticResource BigButton}">
                                 <TextBlock><Run Text="💾 Save last" /> <Run Text="{Binding SelectedQuickDuration.Value, Mode=OneWay}" /><Run Text=" s" /></TextBlock>
                             </Button>
                             <ComboBox ItemsSource="{Binding QuickDurations}" SelectedItem="{Binding SelectedQuickDuration}"
-                                      Width="70" VerticalAlignment="Center" Margin="0,0,6,6" ToolTip="How many seconds these two buttons use" />
+                                      Width="70" VerticalAlignment="Center" Margin="0,0,6,6" ToolTip="How many seconds Save (and its hotkey) keeps" />
                             <Button Content="✂ Edit whole buffer…" Command="{Binding EditLastCommand}" Style="{StaticResource BigButton}" />
                             <Button Content="■ Stop clip" Command="{Binding StopClipsCommand}" Style="{StaticResource BigButton}"
                                     Visibility="{Binding IsClipPlaying, Converter={StaticResource BoolToVisibility}}" />
@@ -420,7 +417,7 @@
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>
-                        <Button Content="Reset to defaults (F8 replay, F9 editor)" Command="{Binding ResetToDefaultsCommand}" HorizontalAlignment="Left" Margin="0,6,0,0" />
+                        <Button Content="Reset to defaults (F8 save, F9 editor)" Command="{Binding ResetToDefaultsCommand}" HorizontalAlignment="Left" Margin="0,6,0,0" />
 
                         <TextBlock Text="Clip hotkeys" Style="{StaticResource SectionHeader}" />
                         <TextBlock Style="{StaticResource Hint}" Text="Set these on the Soundboard tab (select a clip → Hotkey)." Margin="0,0,0,8" />
@@ -530,7 +527,7 @@
                             <Run Text="   Input Mode: Voice Activity (with Push to Talk, friends only hear clips while you hold the key)." /><LineBreak />
                             <Run Text="   If clips sound chopped or quiet: Noise Suppression → None or Standard (Krisp can filter non-voice sounds), and turn off automatic input sensitivity." /><LineBreak /><LineBreak />
                             <Run Text="5. Hotkeys" FontWeight="SemiBold" /><LineBreak />
-                            <Run Text="   F8 replays the last 5 s into Discord, F9 opens the editor — change them on the Hotkeys tab." /><LineBreak /><LineBreak />
+                            <Run Text="   F8 saves the last few seconds as a clip, F9 opens the trim editor on the whole buffer — change them on the Hotkeys tab. Or save and trim from your phone (Phone tab)." /><LineBreak /><LineBreak />
                             <Run Text="Echodeck carries your voice to Discord, so keep it running (it can sit in the tray) while you're in a call." Foreground="#666" />
                         </TextBlock>
                     </StackPanel>
