@@ -199,19 +199,42 @@ public sealed partial class SoundboardViewModel : ObservableObject, IDisposable
         }, "Rename");
     }
 
+    /// <summary>Deletes one clip (row button), or — with no argument — every selected clip.</summary>
     [RelayCommand]
-    private void Delete(ClipItemViewModel? clip)
+    private void Delete(ClipItemViewModel? clip) =>
+        DeleteClips(clip is not null ? new[] { clip } : SelectedClips.Count > 0 ? SelectedClips : SelectedClip is null ? Array.Empty<ClipItemViewModel>() : new[] { SelectedClip });
+
+    /// <summary>Deletes the given clips after a single confirmation.</summary>
+    public void DeleteClips(IReadOnlyList<ClipItemViewModel> clips)
     {
-        clip ??= SelectedClip;
-        if (clip is null) return;
-        if (!_dialogs.Confirm($"Delete \"{clip.Name}\"? This can't be undone.", "Delete clip")) return;
-        Guarded(() =>
+        if (clips.Count == 0) return;
+        string question = clips.Count == 1
+            ? $"Delete \"{clips[0].Name}\"? This can't be undone."
+            : $"Delete these {clips.Count} clips? This can't be undone.\n\n" +
+              string.Join("\n", clips.Take(8).Select(c => "• " + c.Name)) + (clips.Count > 8 ? $"\n… and {clips.Count - 8} more" : "");
+        if (!_dialogs.Confirm(question, clips.Count == 1 ? "Delete clip" : "Delete clips")) return;
+
+        StopPreview(); // a previewing file is open and can't be deleted
+        int deleted = 0;
+        foreach (var clip in clips.ToList())
         {
-            StopPreview();
-            _soundboard.Delete(clip.Id);
-            Notify($"Deleted \"{clip.Name}\".");
-        }, "Delete");
+            try
+            {
+                _soundboard.Delete(clip.Id);
+                deleted++;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Delete {Clip} failed", clip.Name);
+                Notify($"Couldn't delete \"{clip.Name}\": {ex.Message}");
+            }
+        }
+        SelectedClips = Array.Empty<ClipItemViewModel>();
+        if (deleted > 0) Notify(deleted == 1 ? $"Deleted \"{clips[0].Name}\"." : $"Deleted {deleted} clips.");
     }
+
+    /// <summary>Clips currently selected in a list (set by the view; supports Ctrl/Shift multi-select).</summary>
+    public IReadOnlyList<ClipItemViewModel> SelectedClips { get; set; } = Array.Empty<ClipItemViewModel>();
 
     [RelayCommand]
     private async Task DuplicateAsync(ClipItemViewModel? clip)

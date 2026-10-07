@@ -85,6 +85,8 @@ Preparation: VB-CABLE installed. Windows output and Discord output on your heads
 | 3.6 | Mash F8 ten times quickly. | No crash or pile-up. A new replay replaces the playing one unless overlap is on. |
 | 4.1 | Soundboard: give a clip Ctrl+NumPad1, a category and ★. Restart Echodeck. | All three are kept, and Ctrl+NumPad1 plays the clip in-game. |
 | 4.2 | Import an MP3. | It shows up with the right length and plays into Discord. |
+| 4.3a | Delete a clip in each of four ways: the row 🗑 button (Soundboard and Replay tabs), right-click → Delete, the **Del** key, and the details panel. | Each asks for confirmation once, then the clip disappears from both tabs, the clips folder and the phone. |
+| 4.3b | Ctrl/Shift-click several clips (in either tab), then press Del. | One confirmation lists them; all are deleted. |
 | 4.3 | Duplicate, trim, rename and delete clips. | The list, the files in the clips folder and the hotkeys all stay in sync. |
 | 4.4 | Copy 300 WAVs into the clips folder and restart. | All are adopted; search, filter and scrolling stay instant. |
 | 4.5 | Set a clip's volume to 50 %. | It plays quieter, both in Discord and in your headset. |
