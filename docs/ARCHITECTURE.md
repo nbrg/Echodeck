@@ -222,6 +222,61 @@ Nothing is changed automatically. The rules are platform-neutral and unit-tested
 The same editor opens a fresh capture of the replay buffer (**Edit last 30 s…**). Phase 3 attaches
 that to a hotkey.
 
+### Global hotkeys (Phase 3)
+
+`HotkeyService` calls Win32 `RegisterHotKey` on a hidden message-only window, with `MOD_NOREPEAT`.
+Windows delivers `WM_HOTKEY` whichever app has focus, including fullscreen CS2. Echodeck never hooks
+or reads other keystrokes, which keeps it anti-cheat-friendly.
+
+* `HotkeyCoordinator` registers the global actions from settings plus each clip's hotkey from the
+  library, and re-registers only when one of them changes.
+* Results are shown per binding: registered, conflict (another Echodeck action already has it, so
+  only the first fires), taken by another program (`ERROR_HOTKEY_ALREADY_REGISTERED`), or invalid.
+* Plain letters, digits and Space need Ctrl, Alt or Win. Otherwise the key would stop working for
+  typing everywhere else.
+* `HotkeyBox` suspends all hotkeys while you're recording a new shortcut, so pressing F8 there
+  records F8 instead of triggering the replay.
+* Everything a hotkey can do goes through `AppActions`, the same code path as the buttons, the tray
+  and the phone.
+
+### Soundboard library (Phase 4)
+
+* `ClipLibraryStore` keeps `clips.json`: id, name, file, created date, duration, volume, category,
+  favourite and hotkey. Saves are atomic.
+* The WAV files remain the source of truth. On load, unknown files are adopted, which migrates clips
+  from earlier versions, and entries whose file was deleted are dropped.
+* `SoundboardService` keeps files and metadata in step through add, import (any format Media
+  Foundation reads, stored as WAV), rename, duplicate, trim and delete.
+* Decoded audio is cached, most recently used first, up to about 60 s of audio, so clip hotkeys fire
+  instantly.
+* The list is a virtualising `ListView` over an `ICollectionView`, filtered and sorted in place, so
+  hundreds of clips stay responsive.
+
+### Tray and startup (Phase 5)
+
+* WinForms `NotifyIcon` (part of .NET) for the tray icon.
+* Minimise to tray is on by default; close to tray and start minimised are optional.
+* Start with Windows uses the per-user Run key, so no admin rights are needed. The entry is updated
+  to the current exe path on every launch, because each release is a new file.
+* Recording can be paused, which releases the capture stream; the timeline keeps advancing.
+* Meters stop polling while the window is hidden.
+
+### Phone / tablet remote
+
+`Echodeck.Remote` is a small Kestrel server, off by default, listening on port 5800 on the local
+network. `GET /` serves one embedded page with the touch grid, Replay, Stop and Mute; it can be
+added to the home screen.
+
+* **Authentication.** Every `/api` call needs a 128-bit random pairing token, sent in a header and
+  compared in constant time. The QR code and link carry the token in the URL fragment, which the
+  browser never sends to the server and never puts in logs.
+* **No internet.** Nothing is exposed beyond the LAN, and Windows Firewall asks the user once.
+* **Same code path.** Commands are marshalled to the UI thread and run through `AppActions`, so a
+  tap behaves exactly like the matching button.
+* **Polling.** The page polls `/api/state` every 1.5 s and reloads the clip list only when the
+  library version changes.
+* **Tests.** Integration tests start the real server and check the token gate and the commands.
+
 ### Single instance
 
 A named mutex (`Local\Echodeck.SingleInstance`) allows one copy per Windows session. A second
@@ -302,7 +357,9 @@ Runtime data lives in `%AppData%\Echodeck\`:
 | Phase | Scope | Status |
 |---|---|---|
 | 1 | Discord detection, per-process capture with fallbacks, 30 s rolling buffer, save last N s as WAV, local preview, logging and diagnostics | done |
-| 2 | Mic capture, VB-CABLE output, mixer (gain, limiter, meters, optional ducking), play clip to Discord, setup warnings. Brought forward: waveform editor with trimming, rename/delete, single instance, app icon | **this commit** |
-| 3 | `HotkeyService` (`RegisterHotKey`), global hotkeys for quick replay (3/5/10 s straight to Discord) and for opening the editor | next |
-| 4 | Soundboard library (`clips.json`), per-clip hotkeys, categories, search, sort, favourites | |
-| 5 | Navigation UI, tray, start minimised or with Windows, Setup page, device-recovery polish, optional installer/auto-update (single-file exe releases already exist) | |
+| 2 | Mic capture, VB-CABLE output, mixer (gain, limiter, meters, optional ducking), play clip to Discord, setup warnings, waveform editor, rename/delete, single instance, icon | done |
+| 3 | Global hotkeys (`RegisterHotKey`): quick replay 3/5/10 s, open editor, save, stop, mute, plus conflict and "taken by another app" detection | done |
+| 4 | Soundboard library (`clips.json`): categories, favourites, per-clip volume and hotkey, search/sort/filter, import, duplicate | done |
+| 5 | Tabbed UI (Replay · Soundboard · Audio · Hotkeys · Phone · Setup · Settings), tray, start minimised or with Windows, pause recording | done |
+| + | Phone/tablet remote (LAN web page, QR pairing) | done |
+| later | Installer/auto-update (Velopack), Stream Deck/MIDI triggers, effects, silence trimming, normalisation, transcription | |

@@ -39,7 +39,17 @@ public sealed partial class AudioPageViewModel : ObservableObject, IDisposable
         LoadSettings();
         RefreshDevices();
         _devices.DevicesChanged += OnDevicesChanged;
+        _settings.Changed += OnSettingsChanged;
     }
+
+    /// <summary>Mute can be toggled from a hotkey, the tray or the phone: keep the checkbox in sync.</summary>
+    private void OnSettingsChanged(object? sender, AppSettings s) => _dispatcher.BeginInvoke(() =>
+    {
+        if (MicrophoneMuted == s.MicrophoneMuted) return;
+        _loading = true;
+        MicrophoneMuted = s.MicrophoneMuted;
+        _loading = false;
+    });
 
     public IReadOnlyList<Choice<DiscordCaptureMode>> CaptureModes { get; }
 
@@ -157,5 +167,9 @@ public sealed partial class AudioPageViewModel : ObservableObject, IDisposable
 
     private void OnDevicesChanged(object? sender, EventArgs e) => _dispatcher.BeginInvoke(RefreshDevices);
 
-    public void Dispose() => _devices.DevicesChanged -= OnDevicesChanged;
+    public void Dispose()
+    {
+        _devices.DevicesChanged -= OnDevicesChanged;
+        _settings.Changed -= OnSettingsChanged;
+    }
 }

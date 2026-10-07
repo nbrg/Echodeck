@@ -1,6 +1,9 @@
 using System.Windows;
 using System.Windows.Threading;
+using Echodeck.App.Controls;
 using Echodeck.App.Services;
+using Echodeck.Audio.Soundboard;
+using Echodeck.Core.Soundboard;
 using Echodeck.App.ViewModels;
 using Echodeck.Audio.Mixing;
 using Echodeck.Audio.Output;
@@ -66,6 +69,8 @@ public partial class App : Application
             args.SetObserved();
         };
 
+        var settings = _services.GetRequiredService<SettingsService>();
+        _services.GetRequiredService<ClipLibraryStore>().Load();
         _services.GetRequiredService<DiscordCaptureService>().Start();
         _services.GetRequiredService<MicrophoneCaptureService>().Start();
         _services.GetRequiredService<VirtualOutputService>().Start();
@@ -74,7 +79,55 @@ public partial class App : Application
 
         var window = _services.GetRequiredService<MainWindow>();
         MainWindow = window;
-        window.Show();
+
+        // Global hotkeys (Phase 3): suspended while a hotkey box is recording a new shortcut.
+        var hotkeys = _services.GetRequiredService<HotkeyService>();
+        HotkeyBox.CapturingChanged += (_, capturing) => { if (capturing) hotkeys.Suspend(); else hotkeys.Resume(); };
+        _services.GetRequiredService<HotkeyCoordinator>().Start();
+
+        // Tray (Phase 5).
+        var actions = _services.GetRequiredService<AppActions>();
+        var tray = _services.GetRequiredService<TrayIconService>();
+        tray.ExitRequested += (_, _) => ExitApplication();
+        actions.ShowWindowRequested += (_, tab) => window.BringToFront(tab);
+        window.Closed += (_, _) =>
+        {
+            _windowClosed = true;
+            ExitApplication();
+        };
+        window.HiddenToTray += (_, _) =>
+        {
+            if (settings.Current.TrayHintShown) return;
+            tray.ShowBalloon("Echodeck is still running", "It's in the notification area. Hotkeys keep working; double-click the icon to open it.");
+            settings.Update(s => s.TrayHintShown = true);
+        };
+
+        // Phone / tablet remote.
+        _services.GetRequiredService<RemoteHost>().Start();
+
+        try { StartupRegistration.RefreshPathIfEnabled(); }
+        catch (Exception ex) { _logger.LogWarning(ex, "Could not update the start-with-Windows entry"); }
+
+        bool startHidden = settings.Current.StartMinimized || e.Args.Contains("--minimized", StringComparer.OrdinalIgnoreCase);
+        if (startHidden) _logger.LogInformation("Started minimised to the tray");
+        else window.Show();
+    }
+
+    private bool _exiting;
+    private bool _windowClosed;
+
+    /// <summary>The one real way out: tray "Exit", or closing the window when close-to-tray is off.</summary>
+    private void ExitApplication()
+    {
+        if (_exiting) return;
+        _exiting = true;
+        // Closing an already-closed (or closing) window throws, so only close it if it's still open.
+        if (!_windowClosed && MainWindow is MainWindow window)
+        {
+            window.IsExiting = true;
+            window.Close();
+        }
+        Shutdown();
     }
 
     private static ServiceProvider ConfigureServices(AppPaths paths, FileLoggerProvider fileLogger)
@@ -109,13 +162,27 @@ public partial class App : Application
         services.AddSingleton<HeadphoneClipMonitorService>();
         services.AddSingleton<AudioSetupMonitor>();
         services.AddSingleton<ReplayService>();
+        services.AddSingleton(sp => new ClipLibraryStore(
+            sp.GetRequiredService<AppPaths>(), SoundboardService.ReadDuration, sp.GetRequiredService<ILogger<ClipLibraryStore>>()));
+        services.AddSingleton<SoundboardService>();
         services.AddSingleton<LocalPreviewPlayer>();
         services.AddSingleton<DiagnosticsReport>();
 
-        // UI
+        // App services (UI thread)
         services.AddSingleton<DialogService>();
         services.AddSingleton<ClipEditorFactory>();
+        services.AddSingleton<AppActions>();
+        services.AddSingleton<HotkeyService>();
+        services.AddSingleton<HotkeyCoordinator>();
+        services.AddSingleton<TrayIconService>();
+        services.AddSingleton<RemoteHost>();
+
+        // View models
         services.AddSingleton<AudioPageViewModel>();
+        services.AddSingleton<SoundboardViewModel>();
+        services.AddSingleton<HotkeysViewModel>();
+        services.AddSingleton<PhoneViewModel>();
+        services.AddSingleton<SettingsPageViewModel>();
         services.AddSingleton<MainViewModel>();
         services.AddSingleton<MainWindow>();
 

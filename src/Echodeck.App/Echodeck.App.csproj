@@ -5,6 +5,8 @@
     <TargetFramework>net8.0-windows10.0.19041.0</TargetFramework>
     <SupportedOSPlatformVersion>10.0.17763.0</SupportedOSPlatformVersion>
     <UseWPF>true</UseWPF>
+    <!-- Only for the tray icon (NotifyIcon); WinForms namespaces are not imported globally to avoid name clashes with WPF. -->
+    <UseWindowsForms>true</UseWindowsForms>
     <RootNamespace>Echodeck.App</RootNamespace>
     <AssemblyName>Echodeck</AssemblyName>
     <ApplicationManifest>app.manifest</ApplicationManifest>
@@ -17,7 +19,13 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Using Remove="System.Windows.Forms" />
+    <Using Remove="System.Drawing" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.2.2" />
+    <PackageReference Include="QRCoder" Version="1.6.0" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="8.0.1" />
     <PackageReference Include="Microsoft.Extensions.Logging" Version="8.0.1" />
     <PackageReference Include="Microsoft.Extensions.Logging.Debug" Version="8.0.1" />
@@ -26,6 +34,7 @@
   <ItemGroup>
     <ProjectReference Include="..\Echodeck.Core\Echodeck.Core.csproj" />
     <ProjectReference Include="..\Echodeck.Audio\Echodeck.Audio.csproj" />
+    <ProjectReference Include="..\Echodeck.Remote\Echodeck.Remote.csproj" />
   </ItemGroup>
 
 </Project>

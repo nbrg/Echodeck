@@ -4,11 +4,12 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:vm="clr-namespace:Echodeck.App.ViewModels"
+        xmlns:controls="clr-namespace:Echodeck.App.Controls"
         xmlns:setup="clr-namespace:Echodeck.Core.Setup;assembly=Echodeck.Core"
         mc:Ignorable="d"
         d:DataContext="{d:DesignInstance Type=vm:MainViewModel}"
         Title="Echodeck — Discord instant replay" Icon="/Assets/echodeck.ico"
-        Width="980" Height="700" MinWidth="780" MinHeight="560"
+        Width="1040" Height="740" MinWidth="820" MinHeight="580"
         WindowStartupLocation="CenterScreen">
     <Window.Resources>
         <BooleanToVisibilityConverter x:Key="BoolToVisibility" />
@@ -31,6 +32,24 @@
             <Setter Property="Padding" Value="6,1" />
             <Setter Property="Margin" Value="0,0,4,0" />
         </Style>
+        <Style x:Key="BigButton" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+            <Setter Property="FontSize" Value="14" />
+            <Setter Property="Padding" Value="14,7" />
+            <Setter Property="Margin" Value="0,0,6,6" />
+        </Style>
+        <Style x:Key="Hint" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="#666" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+        </Style>
+        <Style x:Key="StatusText" TargetType="TextBlock">
+            <Setter Property="TextWrapping" Value="Wrap" />
+            <Setter Property="Foreground" Value="#2E7D32" />
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding HasProblem}" Value="True">
+                    <Setter Property="Foreground" Value="#B3261E" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
     </Window.Resources>
 
     <DockPanel Margin="16">
@@ -39,7 +58,6 @@
             <Grid.ColumnDefinitions>
                 <ColumnDefinition /><ColumnDefinition /><ColumnDefinition />
             </Grid.ColumnDefinitions>
-
             <Border Grid.Column="0" Style="{StaticResource Card}">
                 <StackPanel>
                     <TextBlock>
@@ -55,7 +73,7 @@
                     <StackPanel Orientation="Horizontal">
                         <TextBlock><Run Text="Microphone: " /><Run Text="{Binding MicStateText, Mode=OneWay}" FontWeight="SemiBold" /></TextBlock>
                         <TextBlock Text="  · MUTED" Foreground="#B3261E" FontWeight="SemiBold"
-                                   Visibility="{Binding Audio.MicrophoneMuted, Converter={StaticResource BoolToVisibility}}" />
+                                   Visibility="{Binding MicMuted, Converter={StaticResource BoolToVisibility}}" />
                     </StackPanel>
                     <TextBlock Text="{Binding MicDetail}" Foreground="#666" TextTrimming="CharacterEllipsis" ToolTip="{Binding MicDetail}" />
                     <ProgressBar Style="{StaticResource Meter}" Value="{Binding MicLevel, Mode=OneWay}" ToolTip="Your microphone" />
@@ -63,9 +81,7 @@
             </Border>
             <Border Grid.Column="2" Style="{StaticResource Card}" Margin="0">
                 <StackPanel>
-                    <TextBlock>
-                        <Run Text="Discord output: " /><Run Text="{Binding OutputStateText, Mode=OneWay}" FontWeight="SemiBold" />
-                    </TextBlock>
+                    <TextBlock><Run Text="Discord output: " /><Run Text="{Binding OutputStateText, Mode=OneWay}" FontWeight="SemiBold" /></TextBlock>
                     <TextBlock Text="{Binding OutputDetail}" Foreground="#666" TextTrimming="CharacterEllipsis" ToolTip="{Binding OutputDetail}" />
                     <ProgressBar Style="{StaticResource Meter}" Value="{Binding OutgoingLevel, Mode=OneWay}" ToolTip="What Discord receives (mic + clips)" />
                 </StackPanel>
@@ -100,66 +116,185 @@
             <TextBlock Text="{Binding StatusMessage}" TextTrimming="CharacterEllipsis" ToolTip="{Binding StatusMessage}" />
         </Border>
 
-        <TabControl Margin="0,10,0,0" Padding="12">
+        <TabControl Margin="0,10,0,0" Padding="12" SelectedIndex="{Binding SelectedTabIndex}">
+
             <!-- ============ Replay ============ -->
             <TabItem Header="  Replay  ">
                 <DockPanel>
-                    <WrapPanel DockPanel.Dock="Top" Margin="0,0,0,12">
-                        <Button Command="{Binding SaveLastCommand}" FontSize="14" Padding="14,7">
-                            <TextBlock><Run Text="💾 Save last" /> <Run Text="{Binding SelectedQuickDuration.Value, Mode=OneWay}" /><Run Text=" s" /></TextBlock>
-                        </Button>
-                        <Button Command="{Binding ReplayLastToDiscordCommand}" FontSize="14" Padding="14,7">
-                            <TextBlock><Run Text="▶ Replay last" /> <Run Text="{Binding SelectedQuickDuration.Value, Mode=OneWay}" /><Run Text=" s to Discord" /></TextBlock>
-                        </Button>
-                        <ComboBox ItemsSource="{Binding QuickDurations}" SelectedItem="{Binding SelectedQuickDuration}"
-                                  Width="70" VerticalAlignment="Center" Margin="0,0,6,0" ToolTip="How many seconds the two buttons use" />
-                        <Button Command="{Binding EditLastCommand}" FontSize="14" Padding="14,7">
-                            <TextBlock><Run Text="✂ Edit last" /> <Run Text="{Binding SelectedBufferDuration.Value, Mode=OneWay}" /><Run Text=" s…" /></TextBlock>
-                        </Button>
-                        <Button Content="■ Stop clip" Command="{Binding StopClipsCommand}" FontSize="14" Padding="14,7"
-                                Visibility="{Binding IsClipPlaying, Converter={StaticResource BoolToVisibility}}" />
-                    </WrapPanel>
+                    <StackPanel DockPanel.Dock="Top">
+                        <WrapPanel>
+                            <Button Command="{Binding ReplayLastToDiscordCommand}" Style="{StaticResource BigButton}">
+                                <TextBlock><Run Text="▶ Replay last" /> <Run Text="{Binding SelectedQuickDuration.Value, Mode=OneWay}" /><Run Text=" s to Discord" /></TextBlock>
+                            </Button>
+                            <Button Command="{Binding SaveLastCommand}" Style="{StaticResource BigButton}">
+                                <TextBlock><Run Text="💾 Save last" /> <Run Text="{Binding SelectedQuickDuration.Value, Mode=OneWay}" /><Run Text=" s" /></TextBlock>
+                            </Button>
+                            <ComboBox ItemsSource="{Binding QuickDurations}" SelectedItem="{Binding SelectedQuickDuration}"
+                                      Width="70" VerticalAlignment="Center" Margin="0,0,6,6" ToolTip="How many seconds these two buttons use" />
+                            <Button Content="✂ Edit whole buffer…" Command="{Binding EditLastCommand}" Style="{StaticResource BigButton}" />
+                            <Button Content="■ Stop clip" Command="{Binding StopClipsCommand}" Style="{StaticResource BigButton}"
+                                    Visibility="{Binding IsClipPlaying, Converter={StaticResource BoolToVisibility}}" />
+                        </WrapPanel>
+                        <TextBlock Text="{Binding HotkeyHints}" Style="{StaticResource Hint}" Margin="0,2,0,14" />
+                        <TextBlock Text="Recent clips" FontWeight="SemiBold" FontSize="15" Margin="0,0,0,6" />
+                    </StackPanel>
 
-                    <DockPanel DockPanel.Dock="Top" Margin="0,0,0,6">
-                        <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
-                            <Button Content="■ Stop preview" Command="{Binding StopPreviewCommand}"
-                                    Visibility="{Binding IsPreviewing, Converter={StaticResource BoolToVisibility}}" />
-                            <Button Content="Open clips folder" Command="{Binding OpenClipsFolderCommand}" Margin="0" />
-                        </StackPanel>
-                        <TextBlock VerticalAlignment="Center">
-                            <Run Text="Saved clips" FontWeight="SemiBold" FontSize="15" />
-                            <Run Text="  double-click to edit · F2 rename · Del delete" Foreground="#777" />
-                        </TextBlock>
-                    </DockPanel>
-
-                    <ListView x:Name="ClipList" ItemsSource="{Binding SavedClips}" SelectedItem="{Binding SelectedClip}">
+                    <ListView ItemsSource="{Binding RecentClips}">
                         <ListView.View>
                             <GridView>
-                                <GridViewColumn Header="" Width="330">
+                                <GridViewColumn Header="" Width="230">
                                     <GridViewColumn.CellTemplate>
                                         <DataTemplate>
                                             <StackPanel Orientation="Horizontal">
                                                 <Button Content="▶ Preview" Style="{StaticResource RowButton}" ToolTip="Play on your headphones only"
-                                                        Command="{Binding DataContext.PreviewClipCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}" />
-                                                <Button Content="▶ Discord" Style="{StaticResource RowButton}" ToolTip="Play into the voice channel"
-                                                        Command="{Binding DataContext.PlayClipToDiscordCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}" />
-                                                <Button Content="✂ Edit" Style="{StaticResource RowButton}" ToolTip="Trim / rename"
-                                                        Command="{Binding DataContext.EditClipCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}" />
-                                                <Button Content="Rename" Style="{StaticResource RowButton}"
-                                                        Command="{Binding DataContext.RenameClipCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}" />
-                                                <Button Content="🗑" Style="{StaticResource RowButton}" ToolTip="Delete"
-                                                        Command="{Binding DataContext.DeleteClipCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}" />
+                                                        Command="{Binding DataContext.Soundboard.PreviewCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}" />
+                                                <Button Content="▶ Discord" Style="{StaticResource RowButton}"
+                                                        Command="{Binding DataContext.Soundboard.PlayToDiscordCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}" />
+                                                <Button Content="✂ Edit" Style="{StaticResource RowButton}"
+                                                        Command="{Binding DataContext.Soundboard.EditCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}" />
                                             </StackPanel>
                                         </DataTemplate>
                                     </GridViewColumn.CellTemplate>
                                 </GridViewColumn>
-                                <GridViewColumn Header="Name" Width="280" DisplayMemberBinding="{Binding Name}" />
-                                <GridViewColumn Header="Length" Width="70" DisplayMemberBinding="{Binding Duration, StringFormat={}{0:m\\:ss\\.f}}" />
+                                <GridViewColumn Header="Name" Width="320" DisplayMemberBinding="{Binding Name}" />
+                                <GridViewColumn Header="Length" Width="70" DisplayMemberBinding="{Binding DurationText}" />
                                 <GridViewColumn Header="Created" Width="130" DisplayMemberBinding="{Binding CreatedAt, StringFormat={}{0:yyyy-MM-dd HH:mm}}" />
                             </GridView>
                         </ListView.View>
                     </ListView>
                 </DockPanel>
+            </TabItem>
+
+            <!-- ============ Soundboard ============ -->
+            <TabItem Header="  Soundboard  " DataContext="{Binding Soundboard}">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="16" />
+                        <ColumnDefinition Width="300" />
+                    </Grid.ColumnDefinitions>
+
+                    <DockPanel Grid.Column="0">
+                        <DockPanel DockPanel.Dock="Top" Margin="0,0,0,8">
+                            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                                <Button Content="■ Stop preview" Command="{Binding StopPreviewCommand}"
+                                        Visibility="{Binding IsPreviewing, Converter={StaticResource BoolToVisibility}}" />
+                                <Button Content="📥 Import…" Command="{Binding ImportCommand}" ToolTip="Add WAV/MP3 files to the soundboard" />
+                                <Button Content="Open folder" Command="{Binding OpenFolderCommand}" Margin="0" />
+                            </StackPanel>
+                            <TextBox Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged, Delay=150}"
+                                     Width="200" Padding="4,3" Margin="0,0,6,0" ToolTip="Search name, category or hotkey" />
+                            <ComboBox ItemsSource="{Binding Filters}" SelectedItem="{Binding SelectedFilter}" Width="150" Margin="0,0,6,0" />
+                            <ComboBox ItemsSource="{Binding SortOptions}" SelectedItem="{Binding SelectedSort}" Width="130" />
+                            <TextBlock Text="{Binding CountText}" Foreground="#777" VerticalAlignment="Center" Margin="10,0,0,0" />
+                        </DockPanel>
+
+                        <ListView x:Name="SoundboardList" ItemsSource="{Binding View}" SelectedItem="{Binding SelectedClip}"
+                                  VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling">
+                            <ListView.View>
+                                <GridView>
+                                    <GridViewColumn Header="★" Width="40">
+                                        <GridViewColumn.CellTemplate>
+                                            <DataTemplate>
+                                                <ToggleButton IsChecked="{Binding IsFavorite}" Content="★" Padding="4,0" ToolTip="Favourite (shown first, and on the phone's Favourites page)" />
+                                            </DataTemplate>
+                                        </GridViewColumn.CellTemplate>
+                                    </GridViewColumn>
+                                    <GridViewColumn Header="" Width="160">
+                                        <GridViewColumn.CellTemplate>
+                                            <DataTemplate>
+                                                <StackPanel Orientation="Horizontal">
+                                                    <Button Content="▶ Discord" Style="{StaticResource RowButton}"
+                                                            Command="{Binding DataContext.PlayToDiscordCommand, RelativeSource={RelativeSource AncestorType=ListView}}" CommandParameter="{Binding}" />
+                                                    <Button Content="▶ Preview" Style="{StaticResource RowButton}"
+                                                            Command="{Binding DataContext.PreviewCommand, RelativeSource={RelativeSource AncestorType=ListView}}" CommandParameter="{Binding}" />
+                                                </StackPanel>
+                                            </DataTemplate>
+                                        </GridViewColumn.CellTemplate>
+                                    </GridViewColumn>
+                                    <GridViewColumn Header="Name" Width="230" DisplayMemberBinding="{Binding Name}" />
+                                    <GridViewColumn Header="Category" Width="100" DisplayMemberBinding="{Binding Category}" />
+                                    <GridViewColumn Header="Length" Width="60" DisplayMemberBinding="{Binding DurationText}" />
+                                    <GridViewColumn Header="Hotkey" Width="110" DisplayMemberBinding="{Binding Hotkey}" />
+                                </GridView>
+                            </ListView.View>
+                        </ListView>
+                    </DockPanel>
+
+                    <!-- details of the selected clip -->
+                    <Border x:Name="ClipDetails" Grid.Column="2" Background="#F6F7FB" CornerRadius="6" Padding="14" VerticalAlignment="Top">
+                        <Grid>
+                            <TextBlock Text="Select a clip to edit its name, category, volume and hotkey.">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock" BasedOn="{StaticResource Hint}">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding SelectedClip}" Value="{x:Null}">
+                                                <Setter Property="Visibility" Value="Visible" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+                            <StackPanel DataContext="{Binding SelectedClip}">
+                                <StackPanel.Style>
+                                    <Style TargetType="StackPanel">
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding}" Value="{x:Null}">
+                                                <Setter Property="Visibility" Value="Collapsed" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </StackPanel.Style>
+                                <TextBlock Text="{Binding Name}" FontSize="16" FontWeight="SemiBold" TextWrapping="Wrap" />
+                                <TextBlock Foreground="#777">
+                                    <Run Text="{Binding DurationText, Mode=OneWay}" /><Run Text=" · created " /><Run Text="{Binding CreatedAt, Mode=OneWay, StringFormat={}{0:yyyy-MM-dd HH:mm}}" />
+                                </TextBlock>
+
+                                <CheckBox Content="★ Favourite" IsChecked="{Binding IsFavorite}" Margin="0,10,0,0" />
+
+                                <TextBlock Text="Category" Style="{StaticResource Label}" Margin="0,10,0,3" />
+                                <ComboBox IsEditable="True" Text="{Binding Category, UpdateSourceTrigger=LostFocus}"
+                                          ItemsSource="{Binding DataContext.Categories, ElementName=ClipDetails}" />
+
+                                <TextBlock Style="{StaticResource Label}" Margin="0,10,0,3">
+                                    <Run Text="Volume " /><Run Text="{Binding VolumePercent, Mode=OneWay, StringFormat={}{0:0}%}" />
+                                </TextBlock>
+                                <Slider Minimum="0" Maximum="200" Value="{Binding VolumePercent, Delay=250}" TickFrequency="5" IsSnapToTickEnabled="True" />
+
+                                <TextBlock Text="Hotkey (plays it into Discord, even in-game)" Style="{StaticResource Label}" Margin="0,10,0,3" />
+                                <DockPanel>
+                                    <Button DockPanel.Dock="Right" Content="Clear" Margin="6,0,0,0"
+                                            Command="{Binding DataContext.ClearHotkeyCommand, ElementName=ClipDetails}" CommandParameter="{Binding}" />
+                                    <controls:HotkeyBox Gesture="{Binding Hotkey}" />
+                                </DockPanel>
+                                <TextBlock Text="{Binding HotkeyStatus}" FontSize="12" Margin="0,4,0,0" TextWrapping="Wrap">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Foreground" Value="#2E7D32" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding HotkeyHasProblem}" Value="True">
+                                                    <Setter Property="Foreground" Value="#B3261E" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+
+                                <WrapPanel Margin="0,14,0,0">
+                                    <Button Content="✂ Trim / edit" Style="{StaticResource RowButton}" Margin="0,0,6,6"
+                                            Command="{Binding DataContext.EditCommand, ElementName=ClipDetails}" CommandParameter="{Binding}" />
+                                    <Button Content="Rename (F2)" Style="{StaticResource RowButton}" Margin="0,0,6,6"
+                                            Command="{Binding DataContext.RenameCommand, ElementName=ClipDetails}" CommandParameter="{Binding}" />
+                                    <Button Content="Duplicate" Style="{StaticResource RowButton}" Margin="0,0,6,6"
+                                            Command="{Binding DataContext.DuplicateCommand, ElementName=ClipDetails}" CommandParameter="{Binding}" />
+                                    <Button Content="🗑 Delete" Style="{StaticResource RowButton}" Margin="0,0,6,6"
+                                            Command="{Binding DataContext.DeleteCommand, ElementName=ClipDetails}" CommandParameter="{Binding}" />
+                                </WrapPanel>
+                            </StackPanel>
+                        </Grid>
+                    </Border>
+                </Grid>
             </TabItem>
 
             <!-- ============ Audio ============ -->
@@ -200,11 +335,14 @@
                                 </TextBlock>
                                 <Slider Minimum="-30" Maximum="0" Value="{Binding DuckingDb}" TickFrequency="1" IsSnapToTickEnabled="True" VerticalAlignment="Center" />
                             </DockPanel>
+                            <Button Content="Refresh devices" Command="{Binding RefreshDevicesCommand}" HorizontalAlignment="Left" Margin="0,14,0,0" />
+                        </StackPanel>
 
-                            <TextBlock Text="Replay buffer" Style="{StaticResource SectionHeader}" />
+                        <StackPanel Grid.Column="2">
+                            <TextBlock Text="Replay buffer" Style="{StaticResource SectionHeader}" Margin="0,0,0,6" />
                             <CheckBox Content="Include my side in replays (my mic + clips I play), not just my friends"
                                       IsChecked="{Binding IncludeOwnAudioInReplays}" Margin="0,0,0,8" />
-                            <TextBlock Text="Capture method" Style="{StaticResource Label}" />
+                            <TextBlock Text="Capture method for friends' audio" Style="{StaticResource Label}" />
                             <ComboBox ItemsSource="{Binding CaptureModes}" SelectedItem="{Binding SelectedCaptureMode}" />
                             <TextBlock Text="Loopback device (only for 'Selected output device')" Style="{StaticResource Label}" />
                             <ComboBox ItemsSource="{Binding LoopbackDevices}" SelectedItem="{Binding SelectedLoopbackDevice}" IsEnabled="{Binding IsLoopbackDeviceEnabled}" />
@@ -220,52 +358,179 @@
                                 </TextBlock>
                                 <Slider Minimum="0" Maximum="150" Value="{Binding HeadphoneClipVolume}" TickFrequency="5" IsSnapToTickEnabled="True" VerticalAlignment="Center" />
                             </DockPanel>
+                        </StackPanel>
+                    </Grid>
+                </ScrollViewer>
+            </TabItem>
 
-                            <Button Content="Refresh devices" Command="{Binding RefreshDevicesCommand}" HorizontalAlignment="Left" Margin="0,12,0,0" />
+            <!-- ============ Hotkeys ============ -->
+            <TabItem Header="  Hotkeys  " DataContext="{Binding Hotkeys}">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel MaxWidth="900" HorizontalAlignment="Left">
+                        <TextBlock Style="{StaticResource Hint}" Margin="0,0,0,10"
+                                   Text="These work everywhere, even while CS2 is focused or Echodeck is in the tray. Click a box and press the keys (Ctrl/Alt/Shift + F-keys, numpad or letters). Backspace clears it. A shortcut is reserved for Echodeck while it's set, so letters and digits need Ctrl or Alt." />
+                        <ItemsControl ItemsSource="{Binding GlobalRows}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Grid Margin="0,0,0,8">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="300" />
+                                            <ColumnDefinition Width="170" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="{Binding Name}" VerticalAlignment="Center" />
+                                        <controls:HotkeyBox Grid.Column="1" Gesture="{Binding Gesture}" />
+                                        <TextBlock Grid.Column="2" Text="{Binding Status}" Style="{StaticResource StatusText}" Margin="10,0,0,0" VerticalAlignment="Center" />
+                                    </Grid>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                        <Button Content="Reset to defaults (F8 replay, F9 editor)" Command="{Binding ResetToDefaultsCommand}" HorizontalAlignment="Left" Margin="0,6,0,0" />
+
+                        <TextBlock Text="Clip hotkeys" Style="{StaticResource SectionHeader}" />
+                        <TextBlock Style="{StaticResource Hint}" Text="Set these on the Soundboard tab (select a clip → Hotkey)." Margin="0,0,0,8" />
+                        <ItemsControl ItemsSource="{Binding ClipRows}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Grid Margin="0,0,0,6">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="300" />
+                                            <ColumnDefinition Width="170" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" />
+                                        <TextBlock Grid.Column="1" Text="{Binding Gesture}" FontWeight="SemiBold" />
+                                        <TextBlock Grid.Column="2" Text="{Binding Status}" Style="{StaticResource StatusText}" Margin="10,0,0,0" />
+                                    </Grid>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+
+            <!-- ============ Phone ============ -->
+            <TabItem Header="  Phone  " DataContext="{Binding Phone}">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="24" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel>
+                            <TextBlock Text="Phone / tablet soundboard" Style="{StaticResource SectionHeader}" Margin="0,0,0,6" />
+                            <TextBlock Style="{StaticResource Hint}" Margin="0,0,0,10"
+                                       Text="Use your phone or iPad as a touch soundboard while you game: tap a clip and it plays into Discord. Your PC and the phone must be on the same Wi-Fi / home network. Nothing goes through the internet." />
+                            <CheckBox Content="Enable phone / tablet remote" IsChecked="{Binding Enabled}" FontWeight="SemiBold" />
+                            <TextBlock Text="{Binding StatusText}" Foreground="#555" Margin="22,2,0,0" />
+
+                            <TextBlock Text="How to connect" Style="{StaticResource SectionHeader}" />
+                            <TextBlock Style="{StaticResource Hint}" LineHeight="20">
+                                <Run Text="1. Tick the box above. The first time, Windows Firewall asks: allow Echodeck on " /><Run Text="Private networks" FontWeight="SemiBold" /><Run Text="." /><LineBreak />
+                                <Run Text="2. Scan the QR code with your phone's camera and open the link." /><LineBreak />
+                                <Run Text="3. Optional: Share → " /><Run Text="Add to Home Screen" FontWeight="SemiBold" /><Run Text=" (iPhone/iPad) or ⋮ → Add to home screen (Android) for a full-screen app." /><LineBreak />
+                                <Run Text="The QR code contains a secret pairing code, so only devices that scanned it can play clips." />
+                            </TextBlock>
+
+                            <TextBlock Text="Network" Style="{StaticResource Label}" Margin="0,12,0,3" />
+                            <ComboBox ItemsSource="{Binding Urls}" SelectedItem="{Binding SelectedUrl}" ToolTip="If you have several network adapters, pick the one your phone is on (usually 192.168.x.x)" />
+                            <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                                <Button Content="Copy link" Command="{Binding CopyLinkCommand}" />
+                                <Button Content="Open on this PC (test)" Command="{Binding OpenOnThisPcCommand}" />
+                                <Button Content="New pairing code…" Command="{Binding NewPairingCodeCommand}" />
+                            </StackPanel>
+
+                            <TextBlock Text="Port" Style="{StaticResource Label}" Margin="0,12,0,3" />
+                            <StackPanel Orientation="Horizontal">
+                                <TextBox Text="{Binding PortText, UpdateSourceTrigger=PropertyChanged}" Width="80" Padding="4,2" />
+                                <Button Content="Apply" Command="{Binding ApplyPortCommand}" Margin="6,0,0,0" />
+                            </StackPanel>
+                            <TextBlock Text="{Binding Message}" Foreground="#B3261E" TextWrapping="Wrap" Margin="0,8,0,0" />
+                            <TextBlock Style="{StaticResource Hint}" Margin="0,10,0,0"
+                                       Text="Can't connect? Check the phone is on the same Wi-Fi (not mobile data or a guest network), that the Windows network is set to Private, and that the firewall allowed Echodeck. Each new Echodeck version asks the firewall again." />
                         </StackPanel>
 
-                        <!-- Setup guide -->
-                        <Border Grid.Column="2" Background="#F6F7FB" CornerRadius="6" Padding="14" VerticalAlignment="Top">
+                        <Border Grid.Column="2" Background="White" BorderBrush="#DDD" BorderThickness="1" CornerRadius="6" Padding="10" VerticalAlignment="Top"
+                                Visibility="{Binding IsRunning, Converter={StaticResource BoolToVisibility}}">
                             <StackPanel>
-                                <TextBlock Text="How to set it up" Style="{StaticResource SectionHeader}" Margin="0,0,0,8" />
-                                <TextBlock TextWrapping="Wrap" LineHeight="20">
-                                    <Run Text="Windows sound output" FontWeight="SemiBold" /><LineBreak />
-                                    <Run Text="Your headset. Never the CABLE devices." /><LineBreak /><LineBreak />
-                                    <Run Text="Echodeck (this tab)" FontWeight="SemiBold" /><LineBreak />
-                                    <Run Text="Microphone: your real mic" /><LineBreak />
-                                    <Run Text="Send to Discord via: CABLE Input (VB-Audio Virtual Cable)" /><LineBreak />
-                                    <Run Text="Headphones: your headset" /><LineBreak /><LineBreak />
-                                    <Run Text="Discord → User Settings → Voice &amp; Video" FontWeight="SemiBold" /><LineBreak />
-                                    <Run Text="Input Device: CABLE Output (VB-Audio Virtual Cable)" /><LineBreak />
-                                    <Run Text="Output Device: your headset" /><LineBreak />
-                                    <Run Text="Input Mode: Voice Activity. With Push to Talk, friends only hear clips while you hold the key." /><LineBreak />
-                                    <Run Text="If clips sound chopped, set Noise Suppression to None or Standard and turn off 'Automatically determine input sensitivity'." /><LineBreak /><LineBreak />
-                                    <Run Text="Note: Echodeck now carries your voice to Discord — keep it running while you're in a call." Foreground="#666" />
-                                </TextBlock>
+                                <Image Source="{Binding QrCode}" Width="260" Height="260" RenderOptions.BitmapScalingMode="NearestNeighbor" />
+                                <TextBlock Text="Scan with your phone's camera" HorizontalAlignment="Center" Foreground="#666" Margin="0,6,0,0" />
                             </StackPanel>
                         </Border>
                     </Grid>
                 </ScrollViewer>
             </TabItem>
 
-            <!-- ============ Settings ============ -->
-            <TabItem Header="  Settings  ">
-                <StackPanel MaxWidth="520" HorizontalAlignment="Left">
-                    <TextBlock Text="Replay buffer length (kept in memory only)" Style="{StaticResource Label}" />
-                    <ComboBox ItemsSource="{Binding BufferDurations}" SelectedItem="{Binding SelectedBufferDuration}" Width="200" HorizontalAlignment="Left" />
+            <!-- ============ Setup ============ -->
+            <TabItem Header="  Setup  ">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel MaxWidth="820" HorizontalAlignment="Left">
+                        <Border Background="#E8F5E9" BorderBrush="#A5D6A7" BorderThickness="1" CornerRadius="6" Padding="10,8" Margin="0,0,0,12">
+                            <Border.Style>
+                                <Style TargetType="Border">
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding HasSetupIssues}" Value="True">
+                                            <Setter Property="Visibility" Value="Collapsed" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Border.Style>
+                            <TextBlock Text="✔ Your audio routing looks correct. Problems will show up here (and at the top of the window) if anything changes."
+                                       TextWrapping="Wrap" Foreground="#1B5E20" />
+                        </Border>
+                        <TextBlock Style="{StaticResource Hint}" Margin="0,0,0,12" Visibility="{Binding HasSetupIssues, Converter={StaticResource BoolToVisibility}}"
+                                   Text="Fix the warnings shown at the top of the window — they update live as you change settings in Windows and Discord." />
 
-                    <TextBlock Text="Data folder" Style="{StaticResource SectionHeader}" />
-                    <TextBlock Text="{Binding DataFolder}" Foreground="#555" TextWrapping="Wrap" />
-                    <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
-                        <Button Content="Open clips folder" Command="{Binding OpenClipsFolderCommand}" />
-                        <Button Content="Open logs" Command="{Binding OpenLogsFolderCommand}" />
+                        <TextBlock Text="One-time setup" Style="{StaticResource SectionHeader}" Margin="0,0,0,6" />
+                        <TextBlock TextWrapping="Wrap" LineHeight="21">
+                            <Run Text="1. Install VB-CABLE" FontWeight="SemiBold" /><LineBreak />
+                            <Run Text="   Download from vb-audio.com/Cable, run VBCABLE_Setup_x64.exe as administrator, reboot." /><LineBreak /><LineBreak />
+                            <Run Text="2. Windows sound output" FontWeight="SemiBold" /><LineBreak />
+                            <Run Text="   Your headset. Never the CABLE devices (you'd hear nothing)." /><LineBreak /><LineBreak />
+                            <Run Text="3. Echodeck → Audio tab" FontWeight="SemiBold" /><LineBreak />
+                            <Run Text="   Microphone: your real mic · Send to Discord via: CABLE Input · Headphones: your headset" /><LineBreak /><LineBreak />
+                            <Run Text="4. Discord → User Settings → Voice &amp; Video" FontWeight="SemiBold" /><LineBreak />
+                            <Run Text="   Input Device: CABLE Output (VB-Audio Virtual Cable) · Output Device: your headset" /><LineBreak />
+                            <Run Text="   Input Mode: Voice Activity (with Push to Talk, friends only hear clips while you hold the key)." /><LineBreak />
+                            <Run Text="   If clips sound chopped or quiet: Noise Suppression → None or Standard (Krisp can filter non-voice sounds), and turn off automatic input sensitivity." /><LineBreak /><LineBreak />
+                            <Run Text="5. Hotkeys" FontWeight="SemiBold" /><LineBreak />
+                            <Run Text="   F8 replays the last 5 s into Discord, F9 opens the editor — change them on the Hotkeys tab." /><LineBreak /><LineBreak />
+                            <Run Text="Echodeck carries your voice to Discord, so keep it running (it can sit in the tray) while you're in a call." Foreground="#666" />
+                        </TextBlock>
                     </StackPanel>
+                </ScrollViewer>
+            </TabItem>
 
-                    <TextBlock Text="Troubleshooting" Style="{StaticResource SectionHeader}" />
-                    <TextBlock Text="Copies devices, Discord detection, setup warnings and recent log lines — paste it when reporting a problem."
-                               TextWrapping="Wrap" Foreground="#555" />
-                    <Button Content="Copy diagnostics" Command="{Binding CopyDiagnosticsCommand}" HorizontalAlignment="Left" Margin="0,8,0,0" />
-                </StackPanel>
+            <!-- ============ Settings ============ -->
+            <TabItem Header="  Settings  " DataContext="{Binding SettingsPage}">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel MaxWidth="560" HorizontalAlignment="Left">
+                        <TextBlock Text="Replay buffer" Style="{StaticResource SectionHeader}" Margin="0,0,0,6" />
+                        <CheckBox Content="Record the replay buffer (pause it here or from the tray)" IsChecked="{Binding ReplayBufferEnabled}" />
+                        <TextBlock Text="Length (kept in memory only, never written to disk)" Style="{StaticResource Label}" Margin="0,8,0,3" />
+                        <ComboBox ItemsSource="{Binding BufferDurations}" SelectedItem="{Binding SelectedBufferDuration}" Width="200" HorizontalAlignment="Left" />
+
+                        <TextBlock Text="Window &amp; startup" Style="{StaticResource SectionHeader}" />
+                        <CheckBox Content="Minimise to the tray (notification area) instead of the taskbar" IsChecked="{Binding MinimizeToTray}" Margin="0,0,0,6" />
+                        <CheckBox Content="Closing the window keeps Echodeck running in the tray" IsChecked="{Binding CloseToTray}" Margin="0,0,0,6" />
+                        <CheckBox Content="Start minimised to the tray" IsChecked="{Binding StartMinimized}" Margin="0,0,0,6" />
+                        <CheckBox Content="Start Echodeck when I sign in to Windows" IsChecked="{Binding StartWithWindows}" />
+
+                        <TextBlock Text="Data folder" Style="{StaticResource SectionHeader}" />
+                        <TextBlock Text="{Binding DataFolder}" Foreground="#555" TextWrapping="Wrap" />
+                        <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                            <Button Content="Open clips folder" Command="{Binding OpenClipsFolderCommand}" />
+                            <Button Content="Open logs" Command="{Binding OpenLogsFolderCommand}" />
+                        </StackPanel>
+
+                        <TextBlock Text="Troubleshooting" Style="{StaticResource SectionHeader}" />
+                        <TextBlock Text="Copies devices, Discord detection, setup warnings and recent log lines — paste it when reporting a problem."
+                                   Style="{StaticResource Hint}" />
+                        <Button Content="Copy diagnostics" Command="{Binding CopyDiagnosticsCommand}" HorizontalAlignment="Left" Margin="0,8,0,0" />
+                        <TextBlock Text="{Binding Message}" Foreground="#555" TextWrapping="Wrap" Margin="0,10,0,0" />
+                    </StackPanel>
+                </ScrollViewer>
             </TabItem>
         </TabControl>
     </DockPanel>

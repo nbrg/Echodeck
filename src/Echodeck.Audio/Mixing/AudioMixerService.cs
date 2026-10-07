@@ -54,12 +54,12 @@ public sealed class AudioMixerService : IDisposable
     public bool IsClipPlaying => Engine.IsClipPlaying;
 
     /// <summary>Starts playing <paramref name="clip"/> into Discord (on top of the live mic), and on your headphones if enabled.</summary>
-    public void PlayToDiscord(AudioClip clip, string name)
+    public void PlayToDiscord(AudioClip clip, string name, float gain = 1f)
     {
         if (clip.Format != AudioFormat.Internal)
             throw new ArgumentException("Clip must be in the internal 48 kHz stereo format.", nameof(clip));
-        Engine.Play(new ClipVoice(clip, name));
-        if (_hearClipsInHeadphones && _headphoneOutputActive) HeadphoneEngine.Play(new ClipVoice(clip, name));
+        Engine.Play(new ClipVoice(clip, name, gain));
+        if (_hearClipsInHeadphones && _headphoneOutputActive) HeadphoneEngine.Play(new ClipVoice(clip, name, gain));
         _logger.LogInformation("Playing to Discord: {Name} ({Duration:F1}s)", name, clip.Duration.TotalSeconds);
     }
 

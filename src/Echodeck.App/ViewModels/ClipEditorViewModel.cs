@@ -5,7 +5,8 @@ using CommunityToolkit.Mvvm.Input;
 using Echodeck.Audio.Mixing;
 using Echodeck.Audio.Output;
 using Echodeck.Audio.Playback;
-using Echodeck.Audio.Replay;
+using Echodeck.Audio.Soundboard;
+using Echodeck.Core.Soundboard;
 using Echodeck.Core.Audio;
 using Echodeck.Core.Settings;
 using Microsoft.Extensions.Logging;
@@ -23,8 +24,8 @@ public sealed partial class ClipEditorViewModel : ObservableObject, IDisposable
     private const double MinSelection = 0.05;
 
     private readonly AudioClip _clip;
-    private readonly SavedClipInfo? _source;
-    private readonly ReplayService _replay;
+    private readonly SoundboardClip? _source;
+    private readonly SoundboardService _soundboard;
     private readonly AudioMixerService _mixer;
     private readonly VirtualOutputService _output;
     private readonly LocalPreviewPlayer _preview;
@@ -35,12 +36,12 @@ public sealed partial class ClipEditorViewModel : ObservableObject, IDisposable
     private double _previewFrom;
     private double _previewTo;
 
-    public ClipEditorViewModel(AudioClip clip, SavedClipInfo? source, string name, ReplayService replay, AudioMixerService mixer,
+    public ClipEditorViewModel(AudioClip clip, SoundboardClip? source, string name, SoundboardService soundboard, AudioMixerService mixer,
         VirtualOutputService output, LocalPreviewPlayer preview, SettingsService settings, ILogger logger)
     {
         _clip = clip;
         _source = source;
-        _replay = replay;
+        _soundboard = soundboard;
         _mixer = mixer;
         _output = output;
         _preview = preview;
@@ -58,7 +59,7 @@ public sealed partial class ClipEditorViewModel : ObservableObject, IDisposable
     }
 
     /// <summary>Raised after a successful save with the file's new info.</summary>
-    public event EventHandler<SavedClipInfo>? Saved;
+    public event EventHandler<SoundboardClip>? Saved;
 
     /// <summary>Raised when the window should close.</summary>
     public event EventHandler? CloseRequested;
@@ -139,7 +140,7 @@ public sealed partial class ClipEditorViewModel : ObservableObject, IDisposable
             Message = $"Can't play to Discord: {_output.Status.Message}";
             return;
         }
-        _mixer.PlayToDiscord(Selection(), Name);
+        _mixer.PlayToDiscord(Selection(), Name, (float)(_source?.Volume ?? 1.0));
         Message = $"Playing {SelectionEnd - SelectionStart:0.0} s into Discord.";
     }
 
@@ -163,9 +164,9 @@ public sealed partial class ClipEditorViewModel : ObservableObject, IDisposable
             StopPreview();
             _preview.Stop(); // the main window may be previewing this very file
             var selection = Selection();
-            SavedClipInfo saved = _source is not null && !asCopy
-                ? await _replay.OverwriteAsync(_source, selection, name)
-                : await _replay.SaveAsync(selection, name);
+            SoundboardClip saved = _source is not null && !asCopy
+                ? await _soundboard.ReplaceAudioAsync(_source.Id, selection, name)
+                : await _soundboard.AddAsync(selection, name, _source?.Category);
 
             if (thenPlay) PlayToDiscord();
             Saved?.Invoke(this, saved);
@@ -211,9 +212,9 @@ public sealed partial class ClipEditorViewModel : ObservableObject, IDisposable
 
 /// <summary>Creates editor view models with their service dependencies.</summary>
 public sealed class ClipEditorFactory(
-    ReplayService replay, AudioMixerService mixer, VirtualOutputService output,
+    SoundboardService soundboard, AudioMixerService mixer, VirtualOutputService output,
     LocalPreviewPlayer preview, SettingsService settings, ILoggerFactory loggerFactory)
 {
-    public ClipEditorViewModel Create(AudioClip clip, SavedClipInfo? source, string name) =>
-        new(clip, source, name, replay, mixer, output, preview, settings, loggerFactory.CreateLogger<ClipEditorViewModel>());
+    public ClipEditorViewModel Create(AudioClip clip, SoundboardClip? source, string name) =>
+        new(clip, source, name, soundboard, mixer, output, preview, settings, loggerFactory.CreateLogger<ClipEditorViewModel>());
 }
