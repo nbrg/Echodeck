@@ -8,7 +8,7 @@
         xmlns:setup="clr-namespace:Echodeck.Core.Setup;assembly=Echodeck.Core"
         mc:Ignorable="d"
         d:DataContext="{d:DesignInstance Type=vm:MainViewModel}"
-        Title="Echodeck — Discord instant replay" Icon="/Assets/echodeck.ico"
+        Title="{Binding WindowTitle}" Icon="/Assets/echodeck.ico"
         Width="1040" Height="740" MinWidth="820" MinHeight="580"
         WindowStartupLocation="CenterScreen">
     <Window.Resources>

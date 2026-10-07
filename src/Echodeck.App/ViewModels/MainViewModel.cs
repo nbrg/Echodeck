@@ -47,8 +47,9 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         DiscordCaptureService capture, MicrophoneCaptureService mic, VirtualOutputService output, AudioMixerService mixer,
         RollingAudioBuffer buffer, AudioSetupMonitor setup, SettingsService settings, AppActions actions,
         AudioPageViewModel audio, SoundboardViewModel soundboard, HotkeysViewModel hotkeys, PhoneViewModel phone,
-        SettingsPageViewModel settingsPage)
+        SettingsPageViewModel settingsPage, UpdateService updates)
     {
+        WindowTitle = $"Echodeck {updates.CurrentVersion} — Discord instant replay";
         _capture = capture;
         _mic = mic;
         _output = output;
@@ -90,6 +91,9 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         _meterTimer = new DispatcherTimer(TimeSpan.FromMilliseconds(66), DispatcherPriority.Background, (_, _) => UpdateMeters(), _dispatcher);
         _meterTimer.Start();
     }
+
+    /// <summary>Window title including the running version, e.g. "Echodeck 0.4.0-preview.2 — …".</summary>
+    public string WindowTitle { get; }
 
     public AudioPageViewModel Audio { get; }
     public SoundboardViewModel Soundboard { get; }

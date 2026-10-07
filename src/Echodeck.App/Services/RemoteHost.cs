@@ -5,6 +5,7 @@ using Echodeck.Audio.Capture;
 using Echodeck.Audio.Mixing;
 using Echodeck.Audio.Output;
 using Echodeck.Audio.Playback;
+using Echodeck.Audio.Setup;
 using Echodeck.Audio.Soundboard;
 using Echodeck.Core.Audio;
 using Echodeck.Core.Infrastructure;
@@ -29,6 +30,8 @@ public sealed class RemoteHost : IRemoteBackend, IDisposable, IAsyncDisposable
     private readonly VirtualOutputService _output;
     private readonly DiscordCaptureService _capture;
     private readonly LocalPreviewPlayer _preview;
+    private readonly AudioSetupMonitor _setup;
+    private readonly MicrophoneCaptureService _mic;
     private readonly ILogger<RemoteHost> _logger;
     private readonly RemoteServer _server;
     private readonly Dispatcher _dispatcher;
@@ -36,8 +39,11 @@ public sealed class RemoteHost : IRemoteBackend, IDisposable, IAsyncDisposable
     private (bool Enabled, int Port, string Token) _applied;
 
     public RemoteHost(SettingsService settings, AppActions actions, SoundboardService soundboard, AudioMixerService mixer,
-        VirtualOutputService output, DiscordCaptureService capture, LocalPreviewPlayer preview, FileLoggerProvider logProvider, ILoggerFactory loggerFactory)
+        VirtualOutputService output, DiscordCaptureService capture, LocalPreviewPlayer preview, AudioSetupMonitor setup,
+        MicrophoneCaptureService mic, FileLoggerProvider logProvider, ILoggerFactory loggerFactory)
     {
+        _setup = setup;
+        _mic = mic;
         _preview = preview;
         _settings = settings;
         _actions = actions;
@@ -128,7 +134,38 @@ public sealed class RemoteHost : IRemoteBackend, IDisposable, IAsyncDisposable
             ClipPlaying: _mixer.IsClipPlaying,
             LibraryVersion: _soundboard.Library.Version,
             SaveChoices: choices,
-            PreviewPlaying: _preview.IsPlaying);
+            PreviewPlaying: _preview.IsPlaying,
+            Problems: CurrentProblems(s));
+    }
+
+    /// <summary>Everything that would make a tap on the phone not do what you expect, most serious first.</summary>
+    private List<RemoteProblem> CurrentProblems(AppSettings settings)
+    {
+        var problems = new List<RemoteProblem>();
+        var voice = _setup.DiscordVoice;
+        var capture = _capture.Status;
+        bool discordRunning = voice.Running || capture.DiscordProcessId is not null;
+
+        if (!_output.Status.Active)
+            problems.Add(new("error", $"Echodeck can't send audio to Discord: {_output.Status.Message}"));
+        if (!discordRunning)
+            problems.Add(new("error", "Discord isn't running on your PC."));
+        else if (!voice.InVoice)
+            problems.Add(new("warning", "Discord isn't in a voice channel — clips you play won't be heard."));
+        else if (voice.InputIsNotCable)
+            problems.Add(new("error", $"Discord's microphone is \"{voice.InputDevice}\". Set it to CABLE Output, or friends won't hear clips."));
+
+        if (capture.State == CaptureState.Paused)
+            problems.Add(new("warning", "The replay buffer is paused, so Save won't work. Turn recording on in the tray menu or Settings."));
+        else if (capture.State == CaptureState.Error)
+            problems.Add(new("error", $"Can't record Discord audio: {capture.Summary}"));
+
+        if (!_mic.Status.Active)
+            problems.Add(new("warning", $"Microphone: {_mic.Status.Message}"));
+        else if (settings.MicrophoneMuted)
+            problems.Add(new("warning", "Your microphone is muted in Echodeck."));
+
+        return problems.OrderBy(p => p.Severity == "error" ? 0 : 1).ToList();
     }
 
     public IReadOnlyList<RemoteClip> GetClips() =>
@@ -136,19 +173,11 @@ public sealed class RemoteHost : IRemoteBackend, IDisposable, IAsyncDisposable
             .Select(c => new RemoteClip(c.Id, c.Name, c.Category, c.IsFavorite, Math.Round(c.DurationSeconds, 1), c.CreatedAt))
             .ToList();
 
-    public Task<RemoteResult> PlayClipAsync(Guid id) => OnUi(async () =>
-    {
-        bool ok = await _actions.PlayClipAsync(id);
-        return new RemoteResult(ok, ok ? "Playing" : _output.Status.Active ? "Couldn't play that clip" : "Echodeck's Discord output is inactive");
-    });
+    public Task<RemoteResult> PlayClipAsync(Guid id) => OnUi(async () => ToRemote(await _actions.PlayClipAsync(id)));
 
-    public Task<RemoteResult> SaveLastAsync(int seconds) => OnUi(async () =>
-    {
-        var saved = await _actions.SaveLastAsync(seconds);
-        return saved is null
-            ? new RemoteResult(false, "Nothing in the replay buffer yet")
-            : new RemoteResult(true, $"Saved {saved.DurationSeconds:0.0} s", saved.Id);
-    });
+    public Task<RemoteResult> SaveLastAsync(int seconds) => OnUi(async () => ToRemote(await _actions.SaveLastAsync(seconds)));
+
+    private static RemoteResult ToRemote(ActionOutcome o) => new(o.Ok, o.Message, o.ClipId, o.IsWarning);
 
     public Task<RemoteResult> StopAsync() => OnUi(() =>
     {
@@ -181,10 +210,8 @@ public sealed class RemoteHost : IRemoteBackend, IDisposable, IAsyncDisposable
 
     public Task<RemoteResult> PlayRangeToDiscordAsync(Guid id, RangeRequest range) => OnUi(async () =>
     {
-        if (!_output.Status.Active) return new RemoteResult(false, "Echodeck's Discord output is inactive");
         var (entry, selection) = await SliceAsync(id, range);
-        _mixer.PlayToDiscord(selection, entry.Name, (float)entry.Volume);
-        return new RemoteResult(true, $"Playing {selection.Duration.TotalSeconds:0.0} s into Discord", id);
+        return ToRemote(_actions.PlayToDiscord(selection, entry.Name, (float)entry.Volume, id));
     });
 
     public Task<RemoteResult> PreviewRangeOnPcAsync(Guid id, RangeRequest range) => OnUi(async () =>

@@ -15,12 +15,18 @@ namespace Echodeck.Remote;
 /// <param name="ClipPlaying">A clip is playing into Discord.</param>
 /// <param name="PreviewPlaying">A preview is playing on the PC headphones.</param>
 public sealed record RemoteState(bool MicMuted, bool DiscordOutputActive, bool CaptureActive, bool ClipPlaying,
-    long LibraryVersion, IReadOnlyList<int> SaveChoices, bool PreviewPlaying = false);
+    long LibraryVersion, IReadOnlyList<int> SaveChoices, bool PreviewPlaying = false,
+    IReadOnlyList<RemoteProblem>? Problems = null);
 
 public sealed record RemoteClip(Guid Id, string Name, string? Category, bool Favorite, double Duration, DateTime CreatedAt);
 
 /// <param name="ClipId">Set when the action created or changed a clip (e.g. "save last N s").</param>
-public sealed record RemoteResult(bool Ok, string Message, Guid? ClipId = null);
+/// <param name="Warning">It worked, but something is off (e.g. Discord isn't in a voice channel).</param>
+public sealed record RemoteResult(bool Ok, string Message, Guid? ClipId = null, bool Warning = false);
+
+/// <summary>Something that stops Echodeck working as expected, shown as a banner on the phone.</summary>
+/// <param name="Severity">"error" (things won't work) or "warning" (they work, but not as you'd expect).</param>
+public sealed record RemoteProblem(string Severity, string Message);
 
 /// <summary>Waveform for the phone's trim editor: peaks scaled 0–100.</summary>
 public sealed record RemoteWaveform(double Duration, IReadOnlyList<int> Peaks);
