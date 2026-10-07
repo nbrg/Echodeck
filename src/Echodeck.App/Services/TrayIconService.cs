@@ -27,8 +27,8 @@ public sealed class TrayIconService : IDisposable
         menu.Items.Add("Open Echodeck", null, (_, _) => _actions.ShowWindow());
         menu.Items.Add("Soundboard", null, (_, _) => _actions.ShowWindow("Soundboard"));
         menu.Items.Add(new Forms.ToolStripSeparator());
-        menu.Items.Add("Replay last 5 s into Discord", null, async (_, _) => await _actions.ExecuteAsync(HotkeyActions.Replay5));
-        menu.Items.Add("Open replay editor", null, async (_, _) => await _actions.ExecuteAsync(HotkeyActions.OpenEditor));
+        menu.Items.Add("Save last N s as a clip", null, async (_, _) => await _actions.ExecuteAsync(HotkeyActions.SaveLast));
+        menu.Items.Add("Open trim editor", null, async (_, _) => await _actions.ExecuteAsync(HotkeyActions.OpenEditor));
         menu.Items.Add("Stop clips", null, (_, _) => _actions.StopClips());
         menu.Items.Add(new Forms.ToolStripSeparator());
         _mute = new Forms.ToolStripMenuItem("Mute microphone", null, (_, _) => _actions.ToggleMute());

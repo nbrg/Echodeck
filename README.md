@@ -107,11 +107,10 @@ Hotkeys work everywhere, even with CS2 fullscreen and Echodeck in the tray.
 
 | Default key | Action |
 |---|---|
-| **F8** | Replay the last 5 s into Discord |
+| **F8** | Save the last N seconds as a clip (N is set on the Replay tab, default 5) |
 | **F9** | Open the trim editor on the whole replay buffer. Drag the markers, then **Enter** plays the selection, **Ctrl+S** saves it |
 
-Change these, or add more (replay 3 or 10 s, save without editing, stop clips, mute mic), on the
-**Hotkeys** tab. Each clip can also have its own hotkey, for example **Ctrl+NumPad1** for
+Change these, or add stop clips / mute mic, on the **Hotkeys** tab. Each clip can also have its own hotkey, for example **Ctrl+NumPad1** for
 "He's definitely B". Echodeck warns you if two actions share a key, or if another program has
 already taken it.
 
@@ -122,15 +121,25 @@ already taken it.
 2. Scan the QR code with your phone's camera.
 3. Optional: **Add to Home Screen** to use it like an app.
 
-You get one tile per clip (favourites first, with category filters), plus Replay, Stop and Mute
-buttons. Tapping a tile plays the clip into Discord. It only works on your home network, and only
+You get:
+
+* **💾 Save last 5 s** and **💾 Save last 30 s**. These save from the replay buffer, including your
+  side if that's on, and open the trim editor straight away.
+* One tile per clip, with **🕒 Recent**, **★ Favourites** and category filters. Tap a tile to play
+  it into Discord.
+* A **✂** on each tile to trim the clip on the phone. Drag the handles, then preview on your
+  **PC headset** or **this phone**, play the selection into **Discord**, and save, save a copy,
+  rename or delete.
+* Stop and Mute.
+
+So you can save and trim mid-game without alt-tabbing. It only works on your home network, and only
 for devices that scanned the QR code, which contains a secret pairing code.
 
 ### In the window
 
 | Tab | What's there |
 |---|---|
-| **Replay** | ▶ Replay last N s to Discord · 💾 Save last N s · ✂ Edit whole buffer · recent clips |
+| **Replay** | 💾 Save last N s · ✂ Edit whole buffer · recent clips |
 | **Soundboard** | Every clip: search, category filter, sort. Per clip: ▶ Discord, ▶ Preview (headphones only), ★ favourite, category, volume, hotkey, trim/edit, rename (F2), duplicate, delete (Del), and 📥 Import WAV/MP3 |
 | **Audio** | Devices, volumes, mute, ducking, clip overlap, "include my side in replays", "hear clips in my headphones" |
 | **Hotkeys** | Global shortcuts and the status of every hotkey |

@@ -15,7 +15,7 @@
 <style>
   :root {
     --bg: #1e1f22; --panel: #2b2d31; --tile: #313338; --tile-active: #4752c4;
-    --text: #f2f3f5; --muted: #a0a4ab; --accent: #5865f2; --danger: #da373c; --ok: #23a55a;
+    --text: #f2f3f5; --muted: #a0a4ab; --accent: #5865f2; --danger: #da373c; --ok: #23a55a; --sel: rgba(88,101,242,.28);
   }
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
   html, body { margin: 0; background: var(--bg); color: var(--text);
@@ -31,8 +31,10 @@
   button { font: inherit; color: var(--text); border: 0; border-radius: 12px; background: var(--panel);
     padding: 12px 14px; cursor: pointer; touch-action: manipulation; }
   button:active { transform: scale(0.97); }
-  .replay { background: var(--accent); font-weight: 600; flex: 1; padding: 16px 8px; }
-  .stop { background: var(--panel); }
+  button:disabled { opacity: .5; }
+  .primary { background: var(--accent); font-weight: 600; }
+  .danger { background: var(--danger); }
+  .save { flex: 1; padding: 16px 8px; }
   .mute.muted { background: var(--danger); }
   .controls { margin-top: 10px; }
   .chips { display: flex; gap: 6px; overflow-x: auto; margin: 10px 0 4px; padding-bottom: 4px; scrollbar-width: none; }
@@ -40,91 +42,146 @@
   .chip { flex: none; padding: 8px 12px; border-radius: 999px; font-size: 14px; background: var(--panel); color: var(--muted); }
   .chip.sel { background: var(--text); color: var(--bg); }
   .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px; margin-top: 8px; }
-  .tile { min-height: 84px; text-align: left; background: var(--tile); display: flex; flex-direction: column;
-    justify-content: space-between; padding: 12px; border-radius: 14px; word-break: break-word; }
+  .tile { position: relative; min-height: 88px; text-align: left; background: var(--tile); display: flex; flex-direction: column;
+    justify-content: space-between; padding: 12px 44px 12px 12px; border-radius: 14px; word-break: break-word; transition: background 0.4s; }
   .tile .name { font-weight: 600; }
   .tile .meta { color: var(--muted); font-size: 12px; margin-top: 6px; }
   .tile.flash { background: var(--tile-active); transition: none; }
-  .tile { transition: background 0.4s; }
+  .tile .edit { position: absolute; top: 6px; right: 6px; padding: 8px 9px; border-radius: 10px; background: rgba(255,255,255,.08); font-size: 15px; }
   .empty, .error { color: var(--muted); text-align: center; padding: 40px 16px; }
   .error h2 { color: var(--text); }
   #toast { position: fixed; left: 50%; bottom: calc(env(safe-area-inset-bottom) + 16px); transform: translateX(-50%);
     background: var(--panel); padding: 10px 16px; border-radius: 999px; font-size: 14px; opacity: 0; transition: opacity 0.2s;
-    pointer-events: none; max-width: 90vw; text-align: center; }
+    pointer-events: none; max-width: 90vw; text-align: center; z-index: 10; }
   #toast.show { opacity: 1; }
+
+  /* trim editor */
+  #editor { display: none; padding-top: 10px; }
+  body.editing #editor { display: block; }
+  body.editing #board { display: none; }
+  #name { width: 100%; font: inherit; font-size: 17px; color: var(--text); background: var(--panel); border: 0; border-radius: 10px; padding: 12px; user-select: text; -webkit-user-select: text; }
+  #wave { width: 100%; height: 170px; display: block; margin-top: 12px; border-radius: 12px; background: #111214; touch-action: none; }
+  .sel-text { color: var(--muted); font-size: 14px; margin: 8px 0; text-align: center; }
+  .nudge { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+  .nudge button { padding: 10px 4px; font-size: 14px; }
+  .actions { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 10px; }
+  .actions button { padding: 14px 6px; font-size: 15px; }
+  .hint { color: var(--muted); font-size: 12px; text-align: center; margin-top: 10px; }
 </style>
 </head>
 <body>
 <header>
   <div class="row">
-    <div class="title grow"><span id="dot" class="dot"></span>Echodeck</div>
+    <button id="back" style="display:none">← Back</button>
+    <div class="title grow"><span id="dot" class="dot"></span><span id="heading">Echodeck</span></div>
     <button id="mute" class="mute">🎤 Mic on</button>
-    <button id="stop" class="stop">■ Stop</button>
+    <button id="stop">■ Stop</button>
   </div>
   <div id="status" class="status">Connecting…</div>
-  <div id="replays" class="row controls"></div>
-  <div id="chips" class="chips"></div>
 </header>
-<main id="main"><div class="empty">Loading clips…</div></main>
+
+<section id="board">
+  <div id="saves" class="row controls"></div>
+  <div id="chips" class="chips"></div>
+  <main id="main"><div class="empty">Loading clips…</div></main>
+</section>
+
+<section id="editor">
+  <input id="name" type="text" maxlength="120" autocomplete="off" placeholder="Clip name">
+  <canvas id="wave"></canvas>
+  <div id="seltext" class="sel-text"></div>
+  <div class="nudge">
+    <button data-n="s,-0.1">◀ start</button><button data-n="s,0.1">start ▶</button>
+    <button data-n="e,-0.1">◀ end</button><button data-n="e,0.1">end ▶</button>
+  </div>
+  <div class="actions">
+    <button id="pvPc">🎧 PC headset</button>
+    <button id="pvPhone">🔈 This phone</button>
+    <button id="pvDiscord" class="primary">📢 Discord</button>
+  </div>
+  <div class="actions">
+    <button id="saveTrim" class="primary">💾 Save</button>
+    <button id="saveCopy">Save copy</button>
+    <button id="del" class="danger">🗑 Delete</button>
+  </div>
+  <div class="hint">Drag the white handles (or tap to move the nearest one). Previews play only the selection.</div>
+</section>
 <div id="toast"></div>
 
 <script>
 (() => {
-  // Pairing: the QR code opens /#t=<token>. Keep it in localStorage and drop it from the URL.
+  // ---------------------------------------------------------------- pairing + API
   const m = location.hash.match(/t=([0-9a-f]+)/i);
   if (m) { localStorage.setItem('echodeckToken', m[1]); history.replaceState(null, '', '/'); }
   const token = localStorage.getItem('echodeckToken') || '';
-
   const $ = id => document.getElementById(id);
-  let clips = [], libraryVersion = -1, filter = localStorage.getItem('echodeckFilter') || '★', paired = true;
+  let paired = true;
 
-  async function api(path, method = 'GET') {
-    const res = await fetch('/api' + path, { method, headers: { 'X-Echodeck-Token': token }, cache: 'no-store' });
+  async function api(path, method = 'GET', body) {
+    const opts = { method, headers: { 'X-Echodeck-Token': token }, cache: 'no-store' };
+    if (body !== undefined) { opts.headers['Content-Type'] = 'application/json'; opts.body = JSON.stringify(body); }
+    const res = await fetch('/api' + path, opts);
     if (res.status === 401) { paired = false; showUnpaired(); throw new Error('unpaired'); }
-    if (!res.ok) throw new Error('HTTP ' + res.status);
-    return res.json();
+    if (!res.ok) {
+      let msg = 'HTTP ' + res.status;
+      try { msg = (await res.json()).message || msg; } catch {}
+      throw new Error(msg);
+    }
+    return res;
   }
+  const json = async (path, method, body) => (await api(path, method, body)).json();
 
   function toast(text) {
     const t = $('toast'); t.textContent = text; t.classList.add('show');
-    clearTimeout(toast.timer); toast.timer = setTimeout(() => t.classList.remove('show'), 1800);
+    clearTimeout(toast.timer); toast.timer = setTimeout(() => t.classList.remove('show'), 2000);
   }
   const buzz = () => navigator.vibrate && navigator.vibrate(15);
 
-  async function act(path, label) {
+  async function act(path, body) {
     buzz();
-    try { const r = await api(path, 'POST'); toast(r.message || label); refreshState(); }
-    catch (e) { if (paired) toast('Not connected to Echodeck'); }
+    try { const r = await json(path, 'POST', body); toast(r.message || 'Done'); refreshState(); return r; }
+    catch (e) { if (paired) toast(e.message === 'Failed to fetch' ? 'Not connected to Echodeck' : e.message); return null; }
   }
 
   function showUnpaired() {
+    document.body.classList.remove('editing');
     $('main').innerHTML = '<div class="error"><h2>Not paired</h2>Open Echodeck on your PC → <b>Phone</b> tab, ' +
       'then scan the QR code with this device\'s camera.</div>';
     $('status').textContent = 'Not paired';
     $('dot').className = 'dot off';
   }
 
+  // ---------------------------------------------------------------- board (clip grid)
+  let clips = [], libraryVersion = -1, saveChoices = '';
+  let filter = localStorage.getItem('echodeckFilter') || '🕒';
+
   function renderChips() {
     const cats = [...new Set(clips.map(c => c.category).filter(Boolean))].sort((a, b) => a.localeCompare(b));
-    const options = ['★', 'All', ...cats];
-    if (!options.includes(filter)) filter = clips.some(c => c.favorite) ? '★' : 'All';
+    const options = ['🕒', '★', 'All', ...cats];
+    if (!options.includes(filter)) filter = '🕒';
     $('chips').innerHTML = '';
     for (const o of options) {
       const b = document.createElement('button');
       b.className = 'chip' + (o === filter ? ' sel' : '');
-      b.textContent = o === '★' ? '★ Favourites' : o;
+      b.textContent = o === '🕒' ? '🕒 Recent' : o === '★' ? '★ Favourites' : o;
       b.onclick = () => { filter = o; localStorage.setItem('echodeckFilter', o); renderChips(); renderClips(); };
       $('chips').appendChild(b);
     }
   }
 
+  function shownClips() {
+    if (filter === '🕒') return [...clips].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)).slice(0, 40);
+    const list = clips.filter(c => filter === 'All' || (filter === '★' ? c.favorite : c.category === filter));
+    return list.sort((a, b) => (b.favorite - a.favorite) || a.name.localeCompare(b.name));
+  }
+
   function renderClips() {
-    const shown = clips.filter(c => filter === 'All' || (filter === '★' ? c.favorite : c.category === filter));
+    const shown = shownClips();
     const main = $('main');
     if (shown.length === 0) {
       main.innerHTML = '<div class="empty">' + (clips.length === 0
-        ? 'No clips yet. Save some in Echodeck first.'
-        : filter === '★' ? 'No favourites yet — star clips in Echodeck\'s Soundboard tab, or pick "All".' : 'Nothing in this category.') + '</div>';
+        ? 'No clips yet — press 💾 Save above right after something funny happens.'
+        : filter === '★' ? 'No favourites yet — star clips in Echodeck\'s Soundboard tab.' : 'Nothing here.') + '</div>';
       return;
     }
     const grid = document.createElement('div'); grid.className = 'grid';
@@ -133,10 +190,12 @@
       const name = document.createElement('div'); name.className = 'name'; name.textContent = (c.favorite ? '★ ' : '') + c.name;
       const meta = document.createElement('div'); meta.className = 'meta';
       meta.textContent = c.duration.toFixed(1) + ' s' + (c.category ? ' · ' + c.category : '');
-      b.append(name, meta);
+      const edit = document.createElement('span'); edit.className = 'edit'; edit.textContent = '✂'; edit.setAttribute('role', 'button');
+      edit.onclick = ev => { ev.stopPropagation(); openEditor(c.id); };
+      b.append(name, meta, edit);
       b.onclick = () => {
         b.classList.add('flash'); setTimeout(() => b.classList.remove('flash'), 150);
-        act('/clips/' + c.id + '/play', 'Playing ' + c.name);
+        act('/clips/' + c.id + '/play');
       };
       grid.appendChild(b);
     }
@@ -144,42 +203,177 @@
   }
 
   async function loadClips() {
-    clips = await api('/clips');
-    clips.sort((a, b) => (b.favorite - a.favorite) || a.name.localeCompare(b.name));
+    clips = await json('/clips');
     renderChips(); renderClips();
   }
 
-  let replayChoices = '';
+  function renderSaves(choices) {
+    const key = choices.join(',');
+    if (key === saveChoices) return;
+    saveChoices = key;
+    $('saves').innerHTML = '';
+    choices.forEach((sec, i) => {
+      const b = document.createElement('button');
+      b.className = 'save' + (i === 0 ? ' primary' : '');
+      b.textContent = '💾 Save last ' + sec + ' s';
+      b.onclick = async () => {
+        const r = await act('/save/' + sec);
+        if (r && r.ok && r.clipId) { await loadClips(); openEditor(r.clipId); }
+      };
+      $('saves').appendChild(b);
+    });
+  }
+
   async function refreshState() {
     try {
-      const s = await api('/state');
+      const s = await json('/state');
       paired = true;
       $('dot').className = 'dot ' + (s.discordOutputActive ? 'on' : 'off');
-      $('status').textContent = s.discordOutputActive
-        ? (s.clipPlaying ? 'Playing into Discord…' : 'Connected · ready')
-        : 'Echodeck is running, but its Discord output is inactive';
-      const mute = $('mute');
-      mute.textContent = s.micMuted ? '🔇 Muted' : '🎤 Mic on';
-      mute.classList.toggle('muted', s.micMuted);
-      const choices = s.replayChoices.join(',');
-      if (choices !== replayChoices) {
-        replayChoices = choices;
-        $('replays').innerHTML = '';
-        for (const sec of s.replayChoices) {
-          const b = document.createElement('button'); b.className = 'replay';
-          b.textContent = '⟲ Replay ' + sec + ' s';
-          b.onclick = () => act('/replay/' + sec, 'Replaying ' + sec + ' s');
-          $('replays').appendChild(b);
-        }
-      }
+      if (!document.body.classList.contains('editing'))
+        $('status').textContent = s.discordOutputActive
+          ? (s.clipPlaying ? 'Playing into Discord…' : s.captureActive ? 'Connected · recording replay buffer' : 'Connected · replay buffer not recording')
+          : 'Echodeck is running, but its Discord output is inactive';
+      $('mute').textContent = s.micMuted ? '🔇 Muted' : '🎤 Mic on';
+      $('mute').classList.toggle('muted', s.micMuted);
+      renderSaves(s.saveChoices);
       if (s.libraryVersion !== libraryVersion) { libraryVersion = s.libraryVersion; await loadClips(); }
     } catch (e) {
       if (paired) { $('dot').className = 'dot off'; $('status').textContent = 'Can\'t reach Echodeck — same Wi-Fi? Is it running?'; }
     }
   }
 
-  $('stop').onclick = () => act('/stop', 'Stopped');
-  $('mute').onclick = () => act('/mic/toggle-mute', 'Mic toggled');
+  // ---------------------------------------------------------------- trim editor
+  const canvas = $('wave'), g = canvas.getContext('2d');
+  let ed = null;            // { id, duration, peaks, start, end, playhead }
+  let audioCtx = null, audioBuf = null, audioFor = null, phoneSrc = null, raf = 0;
+
+  async function openEditor(id) {
+    const clip = clips.find(c => c.id === id);
+    document.body.classList.add('editing');
+    $('back').style.display = ''; $('heading').textContent = 'Trim';
+    $('name').value = clip ? clip.name : '';
+    $('status').textContent = 'Loading waveform…';
+    ed = null; draw();
+    try {
+      const buckets = Math.min(1200, Math.max(200, Math.round(canvas.clientWidth * (window.devicePixelRatio || 1))));
+      const w = await json('/clips/' + id + '/waveform?buckets=' + buckets);
+      ed = { id, duration: w.duration, peaks: w.peaks, start: 0, end: w.duration, playhead: -1 };
+      $('status').textContent = 'Drag the handles to choose the part to keep';
+      draw();
+    } catch (e) { toast('Couldn\'t load clip: ' + e.message); closeEditor(); }
+  }
+
+  function closeEditor() {
+    stopPhone();
+    document.body.classList.remove('editing');
+    $('back').style.display = 'none'; $('heading').textContent = 'Echodeck';
+    ed = null; refreshState();
+  }
+
+  function draw() {
+    const dpr = window.devicePixelRatio || 1;
+    const W = canvas.clientWidth, H = canvas.clientHeight;
+    if (canvas.width !== W * dpr) { canvas.width = W * dpr; canvas.height = H * dpr; }
+    g.setTransform(dpr, 0, 0, dpr, 0, 0);
+    g.clearRect(0, 0, W, H);
+    if (!ed) { $('seltext').textContent = ''; return; }
+    const x = t => (t / ed.duration) * W;
+    const sx = x(ed.start), ex = x(ed.end), mid = H / 2;
+    g.fillStyle = 'rgba(88,101,242,.22)'; g.fillRect(sx, 0, ex - sx, H);
+    const n = ed.peaks.length;
+    for (let i = 0; i < n; i++) {
+      const px = (i / n) * W, h = Math.max(1, (ed.peaks[i] / 100) * (H - 16));
+      g.fillStyle = (px >= sx && px <= ex) ? '#8b93ff' : '#5c5e66';
+      g.fillRect(px, mid - h / 2, Math.max(1, W / n), h);
+    }
+    for (const hx of [sx, ex]) {
+      g.fillStyle = '#fff'; g.fillRect(hx - 1.5, 0, 3, H);
+      g.beginPath(); g.arc(hx, H - 14, 11, 0, Math.PI * 2); g.fill();
+      g.beginPath(); g.arc(hx, 14, 7, 0, Math.PI * 2); g.fill();
+    }
+    if (ed.playhead >= 0) { g.fillStyle = '#f0b232'; g.fillRect(x(ed.playhead) - 1, 0, 2, H); }
+    $('seltext').textContent = 'Keep ' + (ed.end - ed.start).toFixed(2) + ' s  (' + ed.start.toFixed(2) + ' – ' + ed.end.toFixed(2) + ' of ' + ed.duration.toFixed(2) + ' s)';
+  }
+
+  // Touch / mouse: grab the nearer handle (or move it to where you tapped), then drag.
+  let dragging = null;
+  const timeAt = ev => { const r = canvas.getBoundingClientRect(); return Math.min(1, Math.max(0, (ev.clientX - r.left) / r.width)) * ed.duration; };
+  function setHandle(which, t) {
+    const min = 0.05;
+    if (which === 's') ed.start = Math.max(0, Math.min(t, ed.end - min));
+    else ed.end = Math.min(ed.duration, Math.max(t, ed.start + min));
+    draw();
+  }
+  canvas.addEventListener('pointerdown', ev => {
+    if (!ed) return;
+    canvas.setPointerCapture(ev.pointerId);
+    const t = timeAt(ev);
+    dragging = Math.abs(t - ed.start) <= Math.abs(t - ed.end) ? 's' : 'e';
+    setHandle(dragging, t);
+  });
+  canvas.addEventListener('pointermove', ev => { if (ed && dragging) setHandle(dragging, timeAt(ev)); });
+  const endDrag = () => { dragging = null; };
+  canvas.addEventListener('pointerup', endDrag);
+  canvas.addEventListener('pointercancel', endDrag);
+  window.addEventListener('resize', draw);
+
+  document.querySelectorAll('[data-n]').forEach(b => b.onclick = () => {
+    if (!ed) return;
+    const [which, d] = b.dataset.n.split(',');
+    setHandle(which, (which === 's' ? ed.start : ed.end) + parseFloat(d));
+  });
+
+  const range = () => ({ start: ed.start, end: ed.end });
+
+  $('pvPc').onclick = () => ed && act('/clips/' + ed.id + '/preview-range', range());
+  $('pvDiscord').onclick = () => ed && act('/clips/' + ed.id + '/play-range', range());
+
+  // Phone speaker preview: fetch the WAV once, decode it, play just the selection.
+  function stopPhone() {
+    if (phoneSrc) { try { phoneSrc.stop(); } catch {} phoneSrc = null; }
+    cancelAnimationFrame(raf);
+    if (ed) { ed.playhead = -1; draw(); }
+  }
+  $('pvPhone').onclick = async () => {
+    if (!ed) return;
+    if (phoneSrc) { stopPhone(); return; }
+    buzz();
+    try {
+      audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+      await audioCtx.resume();
+      if (audioFor !== ed.id) {
+        const bytes = await (await api('/clips/' + ed.id + '/audio')).arrayBuffer();
+        audioBuf = await new Promise((ok, fail) => audioCtx.decodeAudioData(bytes, ok, fail));
+        audioFor = ed.id;
+      }
+      const src = audioCtx.createBufferSource();
+      src.buffer = audioBuf; src.connect(audioCtx.destination);
+      const from = ed.start, len = ed.end - ed.start, t0 = audioCtx.currentTime;
+      src.start(0, from, len);
+      phoneSrc = src;
+      src.onended = () => { if (phoneSrc === src) stopPhone(); };
+      const tick = () => { if (!ed || phoneSrc !== src) return; ed.playhead = from + (audioCtx.currentTime - t0); draw(); raf = requestAnimationFrame(tick); };
+      tick();
+    } catch (e) { toast('Phone preview failed: ' + e.message); }
+  };
+
+  async function saveTrim(asCopy) {
+    if (!ed) return;
+    const r = await act('/clips/' + ed.id + '/trim', { ...range(), name: $('name').value.trim() || null, asCopy });
+    if (r && r.ok) { audioFor = null; await loadClips(); closeEditor(); }
+  }
+  $('saveTrim').onclick = () => saveTrim(false);
+  $('saveCopy').onclick = () => saveTrim(true);
+  $('del').onclick = async () => {
+    if (!ed || !confirm('Delete "' + ($('name').value || 'this clip') + '"? This can\'t be undone.')) return;
+    const r = await act('/clips/' + ed.id + '/delete');
+    if (r && r.ok) { await loadClips(); closeEditor(); }
+  };
+  $('back').onclick = closeEditor;
+
+  // ---------------------------------------------------------------- header buttons + polling
+  $('stop').onclick = () => { stopPhone(); act('/stop'); };
+  $('mute').onclick = () => act('/mic/toggle-mute');
 
   if (!token) showUnpaired();
   else {

@@ -264,8 +264,18 @@ or reads other keystrokes, which keeps it anti-cheat-friendly.
 ### Phone / tablet remote
 
 `Echodeck.Remote` is a small Kestrel server, off by default, listening on port 5800 on the local
-network. `GET /` serves one embedded page with the touch grid, Replay, Stop and Mute; it can be
-added to the home screen.
+network. `GET /` serves one embedded page, which can be added to the home screen. It has:
+
+* the touch grid, with Recent, Favourites and category filters
+* "Save last N s"
+* Stop and Mute
+* a **trim editor**: waveform peaks come from `/api/clips/{id}/waveform`, the handles are dragged
+  with pointer events, previews play on the PC headset (`preview-range`) or on the phone (the WAV
+  decoded with Web Audio), and `play-range`, `trim` (overwrite or copy, with rename) and `delete`
+  complete it
+
+That lets you save and trim mid-game without leaving it. The page is exercised end-to-end in
+headless Chromium (iPhone emulation) against the real server during development.
 
 * **Authentication.** Every `/api` call needs a 128-bit random pairing token, sent in a header and
   compared in constant time. The QR code and link carry the token in the URL fragment, which the
@@ -358,7 +368,7 @@ Runtime data lives in `%AppData%\Echodeck\`:
 |---|---|---|
 | 1 | Discord detection, per-process capture with fallbacks, 30 s rolling buffer, save last N s as WAV, local preview, logging and diagnostics | done |
 | 2 | Mic capture, VB-CABLE output, mixer (gain, limiter, meters, optional ducking), play clip to Discord, setup warnings, waveform editor, rename/delete, single instance, icon | done |
-| 3 | Global hotkeys (`RegisterHotKey`): quick replay 3/5/10 s, open editor, save, stop, mute, plus conflict and "taken by another app" detection | done |
+| 3 | Global hotkeys (`RegisterHotKey`): save last N s (F8), open trim editor (F9), stop, mute, plus conflict and "taken by another app" detection. Quick-replay actions were removed at the user's request, and old bindings migrate to "save" | done |
 | 4 | Soundboard library (`clips.json`): categories, favourites, per-clip volume and hotkey, search/sort/filter, import, duplicate | done |
 | 5 | Tabbed UI (Replay · Soundboard · Audio · Hotkeys · Phone · Setup · Settings), tray, start minimised or with Windows, pause recording | done |
 | + | Phone/tablet remote (LAN web page, QR pairing) | done |

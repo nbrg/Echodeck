@@ -13,11 +13,20 @@ using Microsoft.Extensions.Logging;
 namespace Echodeck.Remote;
 
 public sealed record RemoteState(bool MicMuted, bool DiscordOutputActive, bool CaptureActive, bool ClipPlaying,
-    long LibraryVersion, IReadOnlyList<int> ReplayChoices);
+    long LibraryVersion, IReadOnlyList<int> SaveChoices);
 
-public sealed record RemoteClip(Guid Id, string Name, string? Category, bool Favorite, double Duration);
+public sealed record RemoteClip(Guid Id, string Name, string? Category, bool Favorite, double Duration, DateTime CreatedAt);
 
-public sealed record RemoteResult(bool Ok, string Message);
+/// <param name="ClipId">Set when the action created or changed a clip (e.g. "save last N s").</param>
+public sealed record RemoteResult(bool Ok, string Message, Guid? ClipId = null);
+
+/// <summary>Waveform for the phone's trim editor: peaks scaled 0–100.</summary>
+public sealed record RemoteWaveform(double Duration, IReadOnlyList<int> Peaks);
+
+/// <summary>A selection inside a clip, in seconds. Name/AsCopy are only used when saving a trim.</summary>
+public sealed record RangeRequest(double Start, double End, string? Name = null, bool AsCopy = false);
+
+public sealed record RenameRequest(string Name);
 
 /// <summary>What the phone can see and do. Implemented by the app.</summary>
 public interface IRemoteBackend
@@ -25,9 +34,19 @@ public interface IRemoteBackend
     RemoteState GetState();
     IReadOnlyList<RemoteClip> GetClips();
     Task<RemoteResult> PlayClipAsync(Guid id);
-    Task<RemoteResult> ReplayAsync(int seconds);
+    Task<RemoteResult> SaveLastAsync(int seconds);
     Task<RemoteResult> StopAsync();
     Task<RemoteResult> ToggleMuteAsync();
+
+    // Trim editor
+    Task<RemoteWaveform?> GetWaveformAsync(Guid id, int buckets);
+    /// <summary>The clip's WAV file, for previewing on the phone itself.</summary>
+    Task<byte[]?> GetAudioAsync(Guid id);
+    Task<RemoteResult> PlayRangeToDiscordAsync(Guid id, RangeRequest range);
+    Task<RemoteResult> PreviewRangeOnPcAsync(Guid id, RangeRequest range);
+    Task<RemoteResult> SaveTrimAsync(Guid id, RangeRequest range);
+    Task<RemoteResult> RenameAsync(Guid id, string name);
+    Task<RemoteResult> DeleteAsync(Guid id);
 }
 
 /// <summary>
@@ -70,7 +89,7 @@ public sealed class RemoteServer : IAsyncDisposable
         {
             o.ListenAnyIP(port);
             o.AddServerHeader = false;
-            o.Limits.MaxRequestBodySize = 4096; // the API takes no bodies
+            o.Limits.MaxRequestBodySize = 8192; // only small JSON bodies (trim ranges, names)
         });
         builder.Logging.ClearProviders();
         if (_logProvider is not null) builder.Logging.AddProvider(_logProvider);
@@ -88,6 +107,17 @@ public sealed class RemoteServer : IAsyncDisposable
         });
 
         app.MapGet("/", () => Results.Content(ReadAsset("index.html"), "text/html; charset=utf-8"));
+        // Exceptions inside handlers become a JSON error the page can show, never a crash.
+        app.Use(async (ctx, next) =>
+        {
+            try { await next(); }
+            catch (Exception ex) when (!ctx.Response.HasStarted)
+            {
+                _logger.LogWarning(ex, "Remote request {Path} failed", ctx.Request.Path);
+                ctx.Response.StatusCode = 500;
+                await ctx.Response.WriteAsJsonAsync(new RemoteResult(false, ex.Message));
+            }
+        });
         app.MapGet("/manifest.webmanifest", () => Results.Content(ReadAsset("manifest.webmanifest"), "application/manifest+json"));
         app.MapGet("/icon.png", () => Results.Bytes(ReadAssetBytes("icon.png"), "image/png"));
 
@@ -101,7 +131,16 @@ public sealed class RemoteServer : IAsyncDisposable
         api.MapGet("/state", () => backend.GetState());
         api.MapGet("/clips", () => backend.GetClips());
         api.MapPost("/clips/{id:guid}/play", (Guid id) => backend.PlayClipAsync(id));
-        api.MapPost("/replay/{seconds:int}", (int seconds) => backend.ReplayAsync(Math.Clamp(seconds, 1, 60)));
+        api.MapPost("/save/{seconds:int}", (int seconds) => backend.SaveLastAsync(Math.Clamp(seconds, 1, 120)));
+        api.MapGet("/clips/{id:guid}/waveform", async (Guid id, int? buckets) =>
+            await backend.GetWaveformAsync(id, Math.Clamp(buckets ?? 600, 50, 2000)) is { } w ? Results.Ok(w) : Results.NotFound());
+        api.MapGet("/clips/{id:guid}/audio", async (Guid id) =>
+            await backend.GetAudioAsync(id) is { } wav ? Results.Bytes(wav, "audio/wav") : Results.NotFound());
+        api.MapPost("/clips/{id:guid}/play-range", (Guid id, RangeRequest range) => backend.PlayRangeToDiscordAsync(id, range));
+        api.MapPost("/clips/{id:guid}/preview-range", (Guid id, RangeRequest range) => backend.PreviewRangeOnPcAsync(id, range));
+        api.MapPost("/clips/{id:guid}/trim", (Guid id, RangeRequest range) => backend.SaveTrimAsync(id, range));
+        api.MapPost("/clips/{id:guid}/rename", (Guid id, RenameRequest req) => backend.RenameAsync(id, req.Name ?? ""));
+        api.MapPost("/clips/{id:guid}/delete", (Guid id) => backend.DeleteAsync(id));
         api.MapPost("/stop", () => backend.StopAsync());
         api.MapPost("/mic/toggle-mute", () => backend.ToggleMuteAsync());
 
