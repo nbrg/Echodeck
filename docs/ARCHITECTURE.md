@@ -192,7 +192,7 @@ Remaining cases:
 | **Microsoft.Extensions.DependencyInjection / Logging** | Standard DI container and logging abstractions. The file logger is our own small, bounded one, so Serilog isn't needed. |
 | **xUnit** | Unit tests. |
 | Later: **H.NotifyIcon.Wpf** | Tray icon. WPF has none built in. |
-| Later: **Velopack** (or WiX) | Installer and auto-update. |
+| *(dotnet publish)* | Releases ship as one self-contained, single-file `Echodeck.exe` (no installer, no .NET install), built by `.github/workflows/release.yml`. **Velopack** can add an installer and auto-update later if wanted. |
 
 The global hotkeys in Phase 3 use `RegisterHotKey` through P/Invoke, with no package. It is the
 supported global hotkey API, it works while CS2 has focus, and unlike a low-level keyboard hook it
@@ -237,4 +237,4 @@ Runtime data lives in `%AppData%\Echodeck\`:
 | 2 | Mic capture, VB-CABLE output, mixer (gain, limiter, meters, optional ducking), play clip to Discord | next |
 | 3 | `HotkeyService` (`RegisterHotKey`), quick replay actions (3/5/10 s straight to Discord), replay editor with waveform, markers and keyboard control | |
 | 4 | Soundboard library (`clips.json`), per-clip hotkeys, categories, search, sort, favourites | |
-| 5 | Navigation UI, tray, start minimised or with Windows, Setup page, device-recovery polish, installer | |
+| 5 | Navigation UI, tray, start minimised or with Windows, Setup page, device-recovery polish, optional installer/auto-update (single-file exe releases already exist) | |

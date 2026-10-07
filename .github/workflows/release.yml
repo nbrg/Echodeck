@@ -1,0 +1,89 @@
+name: release
+
+# Builds a single self-contained Echodeck.exe on Windows and publishes it as a GitHub Release.
+#
+# Two ways to cut a release:
+#   * push a tag:   git tag v0.2.0 && git push origin v0.2.0
+#   * or run it by hand: Actions → release → Run workflow → enter a version (e.g. 0.2.0-preview.1)
+# Versions containing a "-" (0.2.0-preview.1) are marked as pre-releases.
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version without the leading v (e.g. 0.1.0-preview.1)'
+        required: true
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Determine version
+        id: version
+        run: |
+          if ('${{ github.event_name }}' -eq 'workflow_dispatch') { $v = '${{ inputs.version }}' }
+          else { $v = '${{ github.ref_name }}'.TrimStart('v') }
+          $v = $v.Trim().TrimStart('v')
+          if ($v -notmatch '^\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?$') { throw "Invalid version '$v' (expected e.g. 0.2.0 or 0.2.0-preview.1)" }
+          "version=$v" >> $env:GITHUB_OUTPUT
+          "prerelease=$($v.Contains('-').ToString().ToLower())" >> $env:GITHUB_OUTPUT
+
+      - name: Test
+        run: dotnet test tests/Echodeck.Core.Tests --configuration Release
+
+      - name: Publish single-file exe
+        run: dotnet publish src/Echodeck.App -p:PublishProfile=win-x64 -p:Version=${{ steps.version.outputs.version }}
+
+      - name: Package
+        id: package
+        run: |
+          $v = '${{ steps.version.outputs.version }}'
+          New-Item -ItemType Directory -Force -Path dist | Out-Null
+          $exe = "dist/Echodeck-$v-win-x64.exe"
+          Copy-Item artifacts/publish/win-x64/Echodeck.exe $exe
+          $hash = (Get-FileHash $exe -Algorithm SHA256).Hash.ToLower()
+          "$hash  $(Split-Path $exe -Leaf)" | Out-File -Encoding ascii "$exe.sha256"
+          "exe=$exe" >> $env:GITHUB_OUTPUT
+
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $v = '${{ steps.version.outputs.version }}'
+          $tag = "v$v"
+          $notes = @"
+          ## Download and run
+
+          1. Download **Echodeck-$v-win-x64.exe** below.
+          2. Double-click it. No installer and no .NET install needed; settings, clips and logs live in ``%AppData%\Echodeck``.
+          3. Windows SmartScreen may say "Windows protected your PC" because the exe is not code-signed yet: click **More info → Run anyway**.
+
+          Requirements: 64-bit Windows 10 version 2004+ or Windows 11, Discord desktop app.
+          From Phase 2 on you also need [VB-CABLE](https://vb-audio.com/Cable/).
+
+          Test checklist: [docs/TESTING.md](https://github.com/${{ github.repository }}/blob/$tag/docs/TESTING.md)
+          "@
+          $notes | Out-File -Encoding utf8 notes.md
+
+          $ghArgs = @($tag, '${{ steps.package.outputs.exe }}', '${{ steps.package.outputs.exe }}.sha256',
+                      '--title', "Echodeck $v", '--notes-file', 'notes.md', '--target', '${{ github.sha }}')
+          if ('${{ steps.version.outputs.prerelease }}' -eq 'true') { $ghArgs += '--prerelease' }
+          gh release create @ghArgs
