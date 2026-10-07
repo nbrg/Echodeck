@@ -10,6 +10,8 @@ namespace Echodeck.Audio.Capture;
 public enum CaptureState
 {
     Starting,
+    /// <summary>Replay buffer turned off by the user (tray menu / settings).</summary>
+    Paused,
     /// <summary>Discord is not running (or has no audio session yet, in device mode).</summary>
     WaitingForDiscord,
     Capturing,
@@ -73,7 +75,7 @@ public sealed class DiscordCaptureService : IDisposable
     private int _consecutiveFailures;
     private int _skipTicks;
     private volatile bool _disposed;
-    private (DiscordCaptureMode Mode, string? DeviceId) _appliedCaptureSettings;
+    private (DiscordCaptureMode Mode, string? DeviceId, bool Enabled) _appliedCaptureSettings;
 
     private CaptureStatus _status = new(CaptureState.Starting, CaptureMethod.None, "Starting…");
 
@@ -96,7 +98,7 @@ public sealed class DiscordCaptureService : IDisposable
         _timelineTimer = new Timer(_ => TimelineTick(), null, Timeout.Infinite, Timeout.Infinite);
 
         var initial = settings.Current;
-        _appliedCaptureSettings = (initial.CaptureMode, initial.LoopbackDeviceId);
+        _appliedCaptureSettings = (initial.CaptureMode, initial.LoopbackDeviceId, initial.ReplayBufferEnabled);
         _settings.Changed += OnSettingsChanged;
         _devices.DevicesChanged += OnDevicesChanged;
     }
@@ -188,6 +190,16 @@ public sealed class DiscordCaptureService : IDisposable
     private void Supervise()
     {
         AppSettings settings = _settings.Current;
+        if (!settings.ReplayBufferEnabled)
+        {
+            // Paused: release the capture stream. The timeline keeps padding silence, so when
+            // recording resumes the buffer doesn't splice old audio onto new.
+            _restartRequested = false;
+            StopSource();
+            SetStatus(new CaptureStatus(CaptureState.Paused, CaptureMethod.None, "Replay buffer paused"));
+            return;
+        }
+
         DiscordInstance? discord = DiscordProcessLocator.FindBest(_processes);
         TrackDiscordPresence(discord);
 
@@ -406,10 +418,11 @@ public sealed class DiscordCaptureService : IDisposable
             _logger.LogInformation("Replay buffer resized to {Seconds}s", settings.ReplayBufferSeconds);
         }
 
-        var capture = (settings.CaptureMode, settings.LoopbackDeviceId);
+        var capture = (settings.CaptureMode, settings.LoopbackDeviceId, settings.ReplayBufferEnabled);
         if (capture == _appliedCaptureSettings) return; // e.g. preview device changed: leave capture alone
         _appliedCaptureSettings = capture;
-        _logger.LogInformation("Capture settings changed: mode {Mode}, device {Device}", settings.CaptureMode, settings.LoopbackDeviceId ?? "default");
+        _logger.LogInformation("Capture settings changed: mode {Mode}, device {Device}, enabled {Enabled}",
+            settings.CaptureMode, settings.LoopbackDeviceId ?? "default", settings.ReplayBufferEnabled);
         _processLoopbackFailedPid = null;
         RequestRestart();
     }

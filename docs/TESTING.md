@@ -73,6 +73,30 @@ Preparation: VB-CABLE installed. Windows output and Discord output on your heads
 | 2.17c | Unplug the headset, play two clips to Discord, then plug it back in. | No burst of old clips when the headset returns. |
 | 2.17 | Talk for 2 hours, then **Copy diagnostics**. | The "Mic buffer" line shows a few underruns or drift corrections at most, with no growing latency. Memory is flat. |
 
+## Phases 3–5 checklist: hotkeys, soundboard, tray, phone
+
+| # | Step | Expected |
+|---|---|---|
+| 3.1 | Start CS2 (fullscreen and borderless), a friend talks, press **F8**. | Friends hear the last 5 s, CS2 stays focused, and you hear it in your headset. |
+| 3.2 | In CS2, press **F9**. | The editor opens on top with the whole buffer. Drag to trim, **Enter** plays, **Ctrl+S** saves, **Esc** closes. |
+| 3.3 | Hotkeys tab: set "Replay last 10 s" to F8. | Both rows show the conflict, and only the first one fires. |
+| 3.4 | Set a hotkey that another app already uses (e.g. one Discord's keybinds own). | The row says it's taken by another program. |
+| 3.5 | Try to set plain `A`. | Rejected: letters need Ctrl or Alt. |
+| 3.6 | Mash F8 ten times quickly. | No crash or pile-up. A new replay replaces the playing one unless overlap is on. |
+| 4.1 | Soundboard: give a clip Ctrl+NumPad1, a category and ★. Restart Echodeck. | All three are kept, and Ctrl+NumPad1 plays the clip in-game. |
+| 4.2 | Import an MP3. | It shows up with the right length and plays into Discord. |
+| 4.3 | Duplicate, trim, rename and delete clips. | The list, the files in the clips folder and the hotkeys all stay in sync. |
+| 4.4 | Copy 300 WAVs into the clips folder and restart. | All are adopted; search, filter and scrolling stay instant. |
+| 4.5 | Set a clip's volume to 50 %. | It plays quieter, both in Discord and in your headset. |
+| 5.1 | Minimise. | Goes to the tray and shows a one-time balloon. Hotkeys still work. Double-click the icon restores it. |
+| 5.2 | Tray menu: Mute, Record replay buffer, Exit. | The checkmarks match the app. Exit really quits (check Task Manager). |
+| 5.3 | Settings: start with Windows plus start minimised, then reboot. | Echodeck starts in the tray. |
+| 5.4 | Settings: untick "Record the replay buffer". | Capture shows **Paused**. Ticking it again resumes. |
+| P.1 | Phone tab: enable, allow the firewall prompt, scan the QR code. | The page shows your clips. Tapping one plays it into Discord. Replay, Stop and Mute work. |
+| P.2 | Add to Home Screen on the iPad. | Opens full-screen and stays paired. |
+| P.3 | Click "New pairing code". | The old phone shows "Not paired" until it re-scans. |
+| P.4 | Open the link without the `#t=` part on another device. | It shows "Not paired" and can't trigger anything. |
+
 ## Full routing checklist (Phases 2–5)
 
 | # | Scenario | Pass criteria |

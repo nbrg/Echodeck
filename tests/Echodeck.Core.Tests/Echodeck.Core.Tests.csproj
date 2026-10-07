@@ -18,6 +18,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\Echodeck.Core\Echodeck.Core.csproj" />
+    <ProjectReference Include="..\..\src\Echodeck.Remote\Echodeck.Remote.csproj" />
   </ItemGroup>
 
 </Project>

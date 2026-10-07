@@ -1,4 +1,5 @@
 using Echodeck.Core.Audio;
+using Echodeck.Core.Hotkeys;
 
 namespace Echodeck.Core.Settings;
 
@@ -68,6 +69,36 @@ public sealed class AppSettings
     /// <summary>Mix your side (what Echodeck sends to Discord: mic + clips) into replays.</summary>
     public bool IncludeOwnAudioInReplays { get; set; } = true;
 
+    // ---- Phase 3: global hotkeys (action id → gesture text, e.g. "replay:5" → "F8")
+
+    public Dictionary<string, string> Hotkeys { get; set; } = HotkeyActions.DefaultBindings();
+
+    // ---- Phase 5: tray / startup
+
+    /// <summary>Keep recording the replay buffer (can be paused from the tray).</summary>
+    public bool ReplayBufferEnabled { get; set; } = true;
+
+    public bool MinimizeToTray { get; set; } = true;
+
+    /// <summary>The window's X button hides to the tray instead of exiting.</summary>
+    public bool CloseToTray { get; set; }
+
+    public bool StartMinimized { get; set; }
+
+    /// <summary>Shown once, the first time the window goes to the tray.</summary>
+    public bool TrayHintShown { get; set; }
+
+    // ---- Phone / tablet remote (local network web page)
+
+    public bool RemoteEnabled { get; set; }
+    public int RemotePort { get; set; } = 5800;
+
+    /// <summary>Secret in the pairing link/QR code; required on every remote request.</summary>
+    public string RemoteToken { get; set; } = NewToken();
+
+    public static string NewToken() =>
+        Convert.ToHexString(System.Security.Cryptography.RandomNumberGenerator.GetBytes(16)).ToLowerInvariant();
+
     public static readonly int[] BufferDurationChoices = { 10, 15, 30, 45, 60 };
 
     /// <summary>Clamps values that may have been hand-edited into nonsense.</summary>
@@ -81,10 +112,19 @@ public sealed class AppSettings
         SoundboardGain = Clamp(SoundboardGain, 0, 1.5, 0.8);
         DuckingDb = Clamp(DuckingDb, -30, 0, -8);
         HeadphoneClipGain = Clamp(HeadphoneClipGain, 0, 1.5, 0.8);
+        Hotkeys ??= HotkeyActions.DefaultBindings();
+        RemotePort = RemotePort is >= 1024 and <= 65535 ? RemotePort : 5800;
+        if (string.IsNullOrWhiteSpace(RemoteToken) || RemoteToken.Length < 16) RemoteToken = NewToken();
     }
 
     private static double Clamp(double value, double min, double max, double fallback) =>
         double.IsFinite(value) ? Math.Clamp(value, min, max) : fallback;
 
-    public AppSettings Clone() => (AppSettings)MemberwiseClone();
+    public AppSettings Clone()
+    {
+        var copy = (AppSettings)MemberwiseClone();
+        // Deep-copy reference-type members, or editing a copy would change the original.
+        copy.Hotkeys = new Dictionary<string, string>(Hotkeys ?? new());
+        return copy;
+    }
 }

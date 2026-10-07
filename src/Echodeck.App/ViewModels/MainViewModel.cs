@@ -1,24 +1,18 @@
 using System.Collections.ObjectModel;
-using System.Diagnostics;
-using System.IO;
-using System.Windows;
+using System.Collections.Specialized;
 using System.Windows.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Echodeck.App.Services;
 using Echodeck.Audio.Capture;
 using Echodeck.Audio.Devices;
-using Echodeck.Audio.Diagnostics;
 using Echodeck.Audio.Mixing;
 using Echodeck.Audio.Output;
-using Echodeck.Audio.Playback;
-using Echodeck.Audio.Replay;
 using Echodeck.Audio.Setup;
 using Echodeck.Core.Audio;
-using Echodeck.Core.Infrastructure;
+using Echodeck.Core.Hotkeys;
 using Echodeck.Core.Settings;
 using Echodeck.Core.Setup;
-using Microsoft.Extensions.Logging;
 
 namespace Echodeck.App.ViewModels;
 
@@ -28,82 +22,86 @@ public sealed record Choice<T>(T Value, string Label)
 }
 
 /// <summary>
-/// Main window: status of the three audio paths with meters, setup warnings, instant-replay
-/// actions and the saved clip list. Device settings live in <see cref="AudioPageViewModel"/>.
-/// All audio work lives in the Echodeck.Audio services; this class only adapts them for binding.
-/// Background events are marshalled with Dispatcher.BeginInvoke (never Invoke) so an audio or
-/// device thread can never block on the UI.
+/// Main window: status of the three audio paths with meters, setup warnings, the Replay tab,
+/// and the child view models for the other tabs. All actions go through <see cref="AppActions"/>,
+/// the same path hotkeys, the tray and the phone use. Background events are marshalled with
+/// Dispatcher.BeginInvoke (never Invoke), so an audio or device thread never blocks on the UI.
 /// </summary>
 public sealed partial class MainViewModel : ObservableObject, IDisposable
 {
+    public static readonly string[] TabNames = { "Replay", "Soundboard", "Audio", "Hotkeys", "Phone", "Setup", "Settings" };
+
     private readonly DiscordCaptureService _capture;
     private readonly MicrophoneCaptureService _mic;
     private readonly VirtualOutputService _output;
     private readonly AudioMixerService _mixer;
     private readonly RollingAudioBuffer _buffer;
-    private readonly ReplayService _replay;
-    private readonly LocalPreviewPlayer _preview;
     private readonly AudioSetupMonitor _setup;
     private readonly SettingsService _settings;
-    private readonly DiagnosticsReport _diagnostics;
-    private readonly AppPaths _paths;
-    private readonly DialogService _dialogs;
-    private readonly ClipEditorFactory _editors;
-    private readonly ILogger<MainViewModel> _logger;
+    private readonly AppActions _actions;
     private readonly Dispatcher _dispatcher;
     private readonly DispatcherTimer _meterTimer;
     private bool _loading;
 
     public MainViewModel(
         DiscordCaptureService capture, MicrophoneCaptureService mic, VirtualOutputService output, AudioMixerService mixer,
-        RollingAudioBuffer buffer, ReplayService replay, LocalPreviewPlayer preview, AudioSetupMonitor setup,
-        SettingsService settings, DiagnosticsReport diagnostics, AppPaths paths, DialogService dialogs,
-        ClipEditorFactory editors, AudioPageViewModel audio, ILogger<MainViewModel> logger)
+        RollingAudioBuffer buffer, AudioSetupMonitor setup, SettingsService settings, AppActions actions,
+        AudioPageViewModel audio, SoundboardViewModel soundboard, HotkeysViewModel hotkeys, PhoneViewModel phone,
+        SettingsPageViewModel settingsPage)
     {
         _capture = capture;
         _mic = mic;
         _output = output;
         _mixer = mixer;
         _buffer = buffer;
-        _replay = replay;
-        _preview = preview;
         _setup = setup;
         _settings = settings;
-        _diagnostics = diagnostics;
-        _paths = paths;
-        _dialogs = dialogs;
-        _editors = editors;
-        _logger = logger;
+        _actions = actions;
         _dispatcher = Dispatcher.CurrentDispatcher;
         Audio = audio;
+        Soundboard = soundboard;
+        Hotkeys = hotkeys;
+        Phone = phone;
+        SettingsPage = settingsPage;
 
-        BufferDurations = AppSettings.BufferDurationChoices.Select(s => new Choice<int>(s, $"{s} seconds")).ToArray();
         QuickDurations = new[] { 3, 5, 10, 15, 30 }.Select(s => new Choice<int>(s, $"{s} s")).ToArray();
-        LoadSettings();
-        RefreshClips();
+        _loading = true;
+        var s = settings.Current;
+        SelectedQuickDuration = QuickDurations.FirstOrDefault(c => c.Value == s.QuickSaveSeconds) ?? QuickDurations.First(c => c.Value == 5);
+        _loading = false;
+        UpdateHotkeyHints(s);
 
         ApplyCaptureStatus(_capture.Status);
         ApplyMicStatus(_mic.Status);
         ApplyOutputStatus(_output.Status);
         ApplySetupIssues(_setup.Issues);
+        RefreshRecent();
 
         _capture.StatusChanged += OnCaptureStatusChanged;
         _mic.StatusChanged += OnMicStatusChanged;
         _output.StatusChanged += OnOutputStatusChanged;
         _setup.IssuesChanged += OnSetupIssuesChanged;
-        _preview.PlaybackEnded += OnPreviewEnded;
+        _actions.Notified += OnNotified;
+        Soundboard.Notified += OnNotified;
+        Soundboard.Items.CollectionChanged += OnLibraryItemsChanged;
+        _settings.Changed += OnSettingsChanged;
 
-        // ~15 Hz meters; stopped while minimised (SetMeterActive) so idle CPU stays near zero.
+        // ~15 Hz meters; stopped while hidden/minimised (SetMeterActive) so idle CPU stays near zero.
         _meterTimer = new DispatcherTimer(TimeSpan.FromMilliseconds(66), DispatcherPriority.Background, (_, _) => UpdateMeters(), _dispatcher);
         _meterTimer.Start();
     }
 
     public AudioPageViewModel Audio { get; }
-    public IReadOnlyList<Choice<int>> BufferDurations { get; }
+    public SoundboardViewModel Soundboard { get; }
+    public HotkeysViewModel Hotkeys { get; }
+    public PhoneViewModel Phone { get; }
+    public SettingsPageViewModel SettingsPage { get; }
+
     public IReadOnlyList<Choice<int>> QuickDurations { get; }
-    public ObservableCollection<SavedClipInfo> SavedClips { get; } = new();
+    public ObservableCollection<ClipItemViewModel> RecentClips { get; } = new();
     public ObservableCollection<SetupIssue> SetupIssues { get; } = new();
-    public string DataFolder => _paths.Root;
+
+    [ObservableProperty] private int _selectedTabIndex;
 
     // Status of the three audio paths
     [ObservableProperty] private bool _captureActive;
@@ -113,6 +111,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     [ObservableProperty] private bool _micActive;
     [ObservableProperty] private string _micStateText = "Starting…";
     [ObservableProperty] private string _micDetail = "";
+    [ObservableProperty] private bool _micMuted;
     [ObservableProperty] private bool _outputActive;
     [ObservableProperty] private string _outputStateText = "Starting…";
     [ObservableProperty] private string _outputDetail = "";
@@ -123,239 +122,49 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     [ObservableProperty] private string _bufferText = "";
     [ObservableProperty] private bool _isClipPlaying;
     [ObservableProperty] private bool _hasSetupIssues;
+    [ObservableProperty] private string _hotkeyHints = "";
 
-    [ObservableProperty] private Choice<int>? _selectedBufferDuration;
     [ObservableProperty] private Choice<int>? _selectedQuickDuration;
-    [ObservableProperty] private SavedClipInfo? _selectedClip;
-    [ObservableProperty] private bool _isPreviewing;
     [ObservableProperty] private string _statusMessage = "";
 
-    // ------------------------------------------------------------------ instant replay
+    public void ShowTab(string? name)
+    {
+        int index = name is null ? -1 : Array.IndexOf(TabNames, name);
+        if (index >= 0) SelectedTabIndex = index;
+    }
+
+    // ------------------------------------------------------------------ Replay tab
 
     private int QuickSeconds => SelectedQuickDuration?.Value ?? 5;
 
     [RelayCommand]
-    private async Task SaveLastAsync()
-    {
-        try
-        {
-            AudioClip clip = _replay.CaptureLast(TimeSpan.FromSeconds(QuickSeconds));
-            if (clip.FrameCount == 0) { StatusMessage = "Nothing in the replay buffer yet."; return; }
-            SavedClipInfo saved = await _replay.SaveAsync(clip);
-            SavedClips.Insert(0, saved);
-            SelectedClip = saved;
-            StatusMessage = $"Saved \"{saved.Name}\" ({saved.Duration.TotalSeconds:F1} s).";
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Save last {Seconds}s failed", QuickSeconds);
-            StatusMessage = $"Save failed: {ex.Message}";
-        }
-    }
+    private void ReplayLastToDiscord() => _actions.ReplayToDiscord(QuickSeconds);
 
     [RelayCommand]
-    private void ReplayLastToDiscord()
-    {
-        if (!EnsureDiscordOutput()) return;
-        AudioClip clip = _replay.CaptureLast(TimeSpan.FromSeconds(QuickSeconds));
-        if (clip.FrameCount == 0) { StatusMessage = "Nothing in the replay buffer yet."; return; }
-        _mixer.PlayToDiscord(clip, $"last {QuickSeconds}s");
-        StatusMessage = $"Replaying the last {QuickSeconds} s into Discord.";
-    }
+    private Task SaveLastAsync() => _actions.SaveLastAsync(QuickSeconds);
 
     [RelayCommand]
-    private void EditLast()
-    {
-        AudioClip clip = _replay.CaptureLast(_buffer.Capacity);
-        if (clip.FrameCount == 0) { StatusMessage = "Nothing in the replay buffer yet."; return; }
-        OpenEditor(clip, null, $"Replay {clip.CapturedAt.LocalDateTime:yyyy-MM-dd HH-mm-ss}");
-    }
+    private void EditLast() => _actions.OpenReplayEditor();
 
     [RelayCommand]
-    private void StopClips()
-    {
-        _mixer.StopClips();
-        StatusMessage = "Stopped clip playback.";
-    }
-
-    // ------------------------------------------------------------------ saved clips
+    private void StopClips() => _actions.StopClips();
 
     [RelayCommand]
-    private async Task PreviewClipAsync(SavedClipInfo? clip)
-    {
-        clip ??= SelectedClip;
-        if (clip is null) return;
-        try
-        {
-            await _preview.PlayFileAsync(clip.FilePath, _settings.Current.PreviewDeviceId);
-            IsPreviewing = true;
-            StatusMessage = $"Previewing \"{clip.Name}\" on your headphones (not sent to Discord).";
-        }
-        catch (Exception ex)
-        {
-            StatusMessage = $"Preview failed: {ex.Message}";
-        }
-    }
-
-    [RelayCommand]
-    private void StopPreview()
-    {
-        _preview.Stop();
-        IsPreviewing = false;
-    }
-
-    [RelayCommand]
-    private async Task PlayClipToDiscordAsync(SavedClipInfo? clip)
-    {
-        clip ??= SelectedClip;
-        if (clip is null || !EnsureDiscordOutput()) return;
-        try
-        {
-            AudioClip audio = await _replay.LoadAsync(clip);
-            _mixer.PlayToDiscord(audio, clip.Name);
-            StatusMessage = $"Playing \"{clip.Name}\" into Discord.";
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Play {Clip} to Discord failed", clip.FilePath);
-            StatusMessage = $"Could not play clip: {ex.Message}";
-        }
-    }
-
-    [RelayCommand]
-    private async Task EditClipAsync(SavedClipInfo? clip)
-    {
-        clip ??= SelectedClip;
-        if (clip is null) return;
-        try
-        {
-            AudioClip audio = await _replay.LoadAsync(clip);
-            OpenEditor(audio, clip, clip.Name);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Open editor for {Clip} failed", clip.FilePath);
-            StatusMessage = $"Could not open clip: {ex.Message}";
-        }
-    }
-
-    [RelayCommand]
-    private void RenameClip(SavedClipInfo? clip)
-    {
-        clip ??= SelectedClip;
-        if (clip is null) return;
-        string? newName = _dialogs.Prompt("Rename clip", "New name:", clip.Name);
-        if (newName is null || newName == clip.Name) return;
-        try
-        {
-            StopPreview(); // a previewing file is open and can't be renamed
-            SavedClipInfo renamed = _replay.Rename(clip, newName);
-            ReplaceClip(clip, renamed);
-            StatusMessage = $"Renamed to \"{renamed.Name}\".";
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Rename {Clip} failed", clip.FilePath);
-            StatusMessage = $"Rename failed: {ex.Message}";
-        }
-    }
-
-    [RelayCommand]
-    private void DeleteClip(SavedClipInfo? clip)
-    {
-        clip ??= SelectedClip;
-        if (clip is null) return;
-        if (!_dialogs.Confirm($"Delete \"{clip.Name}\"? This can't be undone.", "Delete clip")) return;
-        try
-        {
-            StopPreview();
-            _replay.Delete(clip);
-            int index = SavedClips.IndexOf(clip);
-            SavedClips.Remove(clip);
-            if (SavedClips.Count > 0) SelectedClip = SavedClips[Math.Clamp(index, 0, SavedClips.Count - 1)];
-            StatusMessage = $"Deleted \"{clip.Name}\".";
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Delete {Clip} failed", clip.FilePath);
-            StatusMessage = $"Delete failed: {ex.Message}";
-        }
-    }
-
-    private void OpenEditor(AudioClip clip, SavedClipInfo? source, string name)
-    {
-        var editor = _editors.Create(clip, source, name);
-        editor.Saved += (_, saved) =>
-        {
-            if (source is not null) ReplaceClip(source, saved);
-            else SavedClips.Insert(0, saved);
-            SelectedClip = saved;
-            StatusMessage = $"Saved \"{saved.Name}\" ({saved.Duration.TotalSeconds:F1} s).";
-        };
-        _dialogs.ShowEditor(editor);
-    }
-
-    private void ReplaceClip(SavedClipInfo old, SavedClipInfo updated)
-    {
-        int index = SavedClips.IndexOf(old);
-        if (index >= 0) SavedClips[index] = updated;
-        else SavedClips.Insert(0, updated);
-        SelectedClip = updated;
-    }
-
-    private void RefreshClips()
-    {
-        SavedClips.Clear();
-        foreach (var clip in _replay.GetSavedClips()) SavedClips.Add(clip);
-    }
-
-    private bool EnsureDiscordOutput()
-    {
-        if (_output.Status.Active) return true;
-        StatusMessage = $"Can't play into Discord: {_output.Status.Message}";
-        return false;
-    }
-
-    // ------------------------------------------------------------------ settings / misc
-
-    [RelayCommand]
-    private void OpenClipsFolder() => OpenInExplorer(_paths.ClipsDirectory);
-
-    [RelayCommand]
-    private void OpenLogsFolder() => OpenInExplorer(_paths.LogsDirectory);
-
-    [RelayCommand]
-    private void CopyDiagnostics()
-    {
-        try
-        {
-            Clipboard.SetText(_diagnostics.Build());
-            StatusMessage = "Diagnostics copied to the clipboard.";
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Copy diagnostics failed");
-            StatusMessage = $"Could not copy diagnostics: {ex.Message}";
-        }
-    }
-
-    private void LoadSettings()
-    {
-        var s = _settings.Current;
-        _loading = true;
-        SelectedBufferDuration = BufferDurations.FirstOrDefault(c => c.Value == s.ReplayBufferSeconds) ?? BufferDurations.First(c => c.Value == 30);
-        SelectedQuickDuration = QuickDurations.FirstOrDefault(c => c.Value == s.QuickSaveSeconds) ?? QuickDurations.First(c => c.Value == 5);
-        _loading = false;
-    }
-
-    partial void OnSelectedBufferDurationChanged(Choice<int>? value)
-    {
-        if (!_loading && value is not null) _settings.Update(s => s.ReplayBufferSeconds = value.Value);
-    }
+    private void ToggleMute() => _actions.ToggleMute();
 
     partial void OnSelectedQuickDurationChanged(Choice<int>? value)
     {
         if (!_loading && value is not null) _settings.Update(s => s.QuickSaveSeconds = value.Value);
+    }
+
+    private void OnLibraryItemsChanged(object? sender, NotifyCollectionChangedEventArgs e) => RefreshRecent();
+
+    private void RefreshRecent()
+    {
+        var newest = Soundboard.Items.OrderByDescending(c => c.CreatedAt).Take(8).ToList();
+        if (RecentClips.SequenceEqual(newest)) return;
+        RecentClips.Clear();
+        foreach (var c in newest) RecentClips.Add(c);
     }
 
     // ------------------------------------------------------------------ background events
@@ -364,7 +173,22 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     private void OnMicStatusChanged(object? sender, EndpointStatus status) => _dispatcher.BeginInvoke(() => ApplyMicStatus(status));
     private void OnOutputStatusChanged(object? sender, EndpointStatus status) => _dispatcher.BeginInvoke(() => ApplyOutputStatus(status));
     private void OnSetupIssuesChanged(object? sender, IReadOnlyList<SetupIssue> issues) => _dispatcher.BeginInvoke(() => ApplySetupIssues(issues));
-    private void OnPreviewEnded(object? sender, EventArgs e) => _dispatcher.BeginInvoke(() => IsPreviewing = false);
+    private void OnNotified(object? sender, string message) => _dispatcher.BeginInvoke(() => StatusMessage = message);
+
+    private void OnSettingsChanged(object? sender, AppSettings s) => _dispatcher.BeginInvoke(() =>
+    {
+        MicMuted = s.MicrophoneMuted;
+        UpdateHotkeyHints(s);
+    });
+
+    private void UpdateHotkeyHints(AppSettings s)
+    {
+        MicMuted = s.MicrophoneMuted;
+        var parts = new List<string>();
+        foreach (var action in HotkeyActions.Global.Take(2))
+            if (s.Hotkeys.TryGetValue(action.Id, out var g)) parts.Add($"{g} = {action.Name.ToLowerInvariant()}");
+        HotkeyHints = parts.Count == 0 ? "No hotkeys set — add them on the Hotkeys tab." : "Hotkeys work in-game: " + string.Join(" · ", parts);
+    }
 
     private void ApplyCaptureStatus(CaptureStatus status)
     {
@@ -373,6 +197,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         {
             CaptureState.Capturing => "Active",
             CaptureState.WaitingForDiscord => "Waiting",
+            CaptureState.Paused => "Paused",
             CaptureState.Error => "Error",
             _ => "Starting…",
         };
@@ -418,23 +243,10 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         return Math.Max(level, previous - 0.04);
     }
 
-    /// <summary>Stops UI polling while the window is minimised.</summary>
+    /// <summary>Stops UI polling while the window is hidden or minimised.</summary>
     public void SetMeterActive(bool active)
     {
         if (active) _meterTimer.Start(); else _meterTimer.Stop();
-    }
-
-    private void OpenInExplorer(string folder)
-    {
-        try
-        {
-            Directory.CreateDirectory(folder);
-            Process.Start(new ProcessStartInfo("explorer.exe", $"\"{folder}\"") { UseShellExecute = true });
-        }
-        catch (Exception ex)
-        {
-            StatusMessage = $"Could not open folder: {ex.Message}";
-        }
     }
 
     public void Dispose()
@@ -444,6 +256,9 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         _mic.StatusChanged -= OnMicStatusChanged;
         _output.StatusChanged -= OnOutputStatusChanged;
         _setup.IssuesChanged -= OnSetupIssuesChanged;
-        _preview.PlaybackEnded -= OnPreviewEnded;
+        _actions.Notified -= OnNotified;
+        Soundboard.Notified -= OnNotified;
+        Soundboard.Items.CollectionChanged -= OnLibraryItemsChanged;
+        _settings.Changed -= OnSettingsChanged;
     }
 }

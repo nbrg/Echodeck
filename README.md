@@ -9,9 +9,15 @@ audio: CS2, Spotify and browser audio are left out. When a friend says something
 replay it straight into the voice channel, or trim it and keep it as a clip. Your live mic keeps
 working the whole time.
 
-> **Status: Phase 2.** Discord-only capture, rolling buffer, play clips into Discord over your live
-> mic (via VB-CABLE), clip editor with waveform trimming, rename/delete, and setup warnings. Global
-> hotkeys come in Phase 3. See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the design and roadmap.
+> **Status: Phases 1–5.**
+> * Discord-only capture, with your side of the conversation mixed in
+> * replay into Discord over your live mic
+> * global hotkeys that work in-game
+> * a soundboard library with per-clip hotkeys
+> * a phone/tablet remote
+> * tray mode and start-with-Windows
+>
+> See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the design.
 
 ## Download and run (no build needed)
 
@@ -95,32 +101,62 @@ it. It checks the devices Discord is actually using, not just Echodeck's own set
 
 ## Using it
 
-| Action | How |
+### While gaming: hotkeys
+
+Hotkeys work everywhere, even with CS2 fullscreen and Echodeck in the tray.
+
+| Default key | Action |
 |---|---|
-| Replay what a friend just said into Discord | **▶ Replay last 5 s to Discord** (the length is selectable) |
-| Trim before playing or saving | **✂ Edit last 30 s…**, drag the white markers, then press **Enter** to play or **Ctrl+S** to save |
-| Save without editing | **💾 Save last 5 s** |
-| Saved clips | **▶ Preview** (headphones only) · **▶ Discord** · **✂ Edit** · **Rename** (F2) · **🗑** (Del) · double-click to edit |
-| Stop a clip that's playing in Discord | **■ Stop clip** |
+| **F8** | Replay the last 5 s into Discord |
+| **F9** | Open the trim editor on the whole replay buffer. Drag the markers, then **Enter** plays the selection, **Ctrl+S** saves it |
+
+Change these, or add more (replay 3 or 10 s, save without editing, stop clips, mute mic), on the
+**Hotkeys** tab. Each clip can also have its own hotkey, for example **Ctrl+NumPad1** for
+"He's definitely B". Echodeck warns you if two actions share a key, or if another program has
+already taken it.
+
+### Phone or iPad as a soundboard
+
+1. **Phone** tab → tick **Enable phone / tablet remote**. Allow Echodeck through Windows Firewall on
+   **Private networks** when asked.
+2. Scan the QR code with your phone's camera.
+3. Optional: **Add to Home Screen** to use it like an app.
+
+You get one tile per clip (favourites first, with category filters), plus Replay, Stop and Mute
+buttons. Tapping a tile plays the clip into Discord. It only works on your home network, and only
+for devices that scanned the QR code, which contains a secret pairing code.
+
+### In the window
+
+| Tab | What's there |
+|---|---|
+| **Replay** | ▶ Replay last N s to Discord · 💾 Save last N s · ✂ Edit whole buffer · recent clips |
+| **Soundboard** | Every clip: search, category filter, sort. Per clip: ▶ Discord, ▶ Preview (headphones only), ★ favourite, category, volume, hotkey, trim/edit, rename (F2), duplicate, delete (Del), and 📥 Import WAV/MP3 |
+| **Audio** | Devices, volumes, mute, ducking, clip overlap, "include my side in replays", "hear clips in my headphones" |
+| **Hotkeys** | Global shortcuts and the status of every hotkey |
+| **Phone** | Remote on/off, QR code, pairing |
+| **Setup** | One-time setup steps and a live routing check |
+| **Settings** | Buffer length, pause recording, tray / start minimised / start with Windows, diagnostics |
 
 Editor keys: **Space** preview · **Enter** play to Discord · **Ctrl+S** save · **Esc** cancel ·
 **←/→** move the start marker · **Shift+←/→** move the end marker (hold **Ctrl** for 100 ms steps).
 
-Replays include **both sides** of the conversation by default: your friends (from Discord) plus what
-you sent to Discord (your mic and any clips you played), lined up in time. Clips you play into
-Discord are also played on your headphones, but your own mic never is. Both options are on the
-Audio tab.
+Replays include **both sides** of the conversation by default: your friends, plus your mic and any
+clips you played. Clips you play into Discord also play in your headphones; your own mic never does.
 
-Only one Echodeck runs at a time. Starting it again brings the open window to the front.
+Echodeck lives in the notification area when minimised. Right-click the icon for replay, stop,
+mute and pause-recording. Only one Echodeck runs at a time; starting it again brings the window to
+the front.
 
-Clips are saved in `%AppData%\Echodeck\clips`, logs in `%AppData%\Echodeck\logs`. Testing checklists
-are in [docs/TESTING.md](docs/TESTING.md).
+Clips are stored in `%AppData%\Echodeck\clips`, with metadata in `clips.json`. Logs are in
+`%AppData%\Echodeck\logs`. Testing checklists are in [docs/TESTING.md](docs/TESTING.md).
 
 ## Project layout
 
 | Project | Contents |
 |---|---|
-| `src/Echodeck.Core` | Platform-neutral logic: rolling buffer, timeline, WAV, settings, logging, Discord process selection |
+| `src/Echodeck.Core` | Platform-neutral logic: buffers, mixer, WAV, settings, clip library, hotkey model, setup rules, logging |
 | `src/Echodeck.Audio` | Windows audio engine: process loopback interop, WASAPI capture and playback, devices, replay |
-| `src/Echodeck.App` | WPF UI and DI composition root |
+| `src/Echodeck.Remote` | Phone/tablet remote: small LAN web server (Kestrel) + touch soundboard page |
+| `src/Echodeck.App` | WPF UI, hotkeys, tray, and the DI composition root |
 | `tests/Echodeck.Core.Tests` | xUnit tests |

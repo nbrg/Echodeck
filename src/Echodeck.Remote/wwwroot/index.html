@@ -1,0 +1,193 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="theme-color" content="#1e1f22">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Echodeck">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="apple-touch-icon" href="/icon.png">
+<link rel="icon" href="/icon.png">
+<title>Echodeck</title>
+<style>
+  :root {
+    --bg: #1e1f22; --panel: #2b2d31; --tile: #313338; --tile-active: #4752c4;
+    --text: #f2f3f5; --muted: #a0a4ab; --accent: #5865f2; --danger: #da373c; --ok: #23a55a;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; background: var(--bg); color: var(--text);
+    font: 16px/1.3 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+  body { padding: env(safe-area-inset-top) 12px calc(env(safe-area-inset-bottom) + 12px); user-select: none; -webkit-user-select: none; }
+  header { position: sticky; top: 0; z-index: 2; background: var(--bg); padding: 10px 0 8px; }
+  .row { display: flex; gap: 8px; align-items: center; }
+  .grow { flex: 1; }
+  .title { font-weight: 700; font-size: 18px; display: flex; align-items: center; gap: 8px; }
+  .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--muted); }
+  .dot.on { background: var(--ok); } .dot.off { background: var(--danger); }
+  .status { color: var(--muted); font-size: 13px; }
+  button { font: inherit; color: var(--text); border: 0; border-radius: 12px; background: var(--panel);
+    padding: 12px 14px; cursor: pointer; touch-action: manipulation; }
+  button:active { transform: scale(0.97); }
+  .replay { background: var(--accent); font-weight: 600; flex: 1; padding: 16px 8px; }
+  .stop { background: var(--panel); }
+  .mute.muted { background: var(--danger); }
+  .controls { margin-top: 10px; }
+  .chips { display: flex; gap: 6px; overflow-x: auto; margin: 10px 0 4px; padding-bottom: 4px; scrollbar-width: none; }
+  .chips::-webkit-scrollbar { display: none; }
+  .chip { flex: none; padding: 8px 12px; border-radius: 999px; font-size: 14px; background: var(--panel); color: var(--muted); }
+  .chip.sel { background: var(--text); color: var(--bg); }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px; margin-top: 8px; }
+  .tile { min-height: 84px; text-align: left; background: var(--tile); display: flex; flex-direction: column;
+    justify-content: space-between; padding: 12px; border-radius: 14px; word-break: break-word; }
+  .tile .name { font-weight: 600; }
+  .tile .meta { color: var(--muted); font-size: 12px; margin-top: 6px; }
+  .tile.flash { background: var(--tile-active); transition: none; }
+  .tile { transition: background 0.4s; }
+  .empty, .error { color: var(--muted); text-align: center; padding: 40px 16px; }
+  .error h2 { color: var(--text); }
+  #toast { position: fixed; left: 50%; bottom: calc(env(safe-area-inset-bottom) + 16px); transform: translateX(-50%);
+    background: var(--panel); padding: 10px 16px; border-radius: 999px; font-size: 14px; opacity: 0; transition: opacity 0.2s;
+    pointer-events: none; max-width: 90vw; text-align: center; }
+  #toast.show { opacity: 1; }
+</style>
+</head>
+<body>
+<header>
+  <div class="row">
+    <div class="title grow"><span id="dot" class="dot"></span>Echodeck</div>
+    <button id="mute" class="mute">🎤 Mic on</button>
+    <button id="stop" class="stop">■ Stop</button>
+  </div>
+  <div id="status" class="status">Connecting…</div>
+  <div id="replays" class="row controls"></div>
+  <div id="chips" class="chips"></div>
+</header>
+<main id="main"><div class="empty">Loading clips…</div></main>
+<div id="toast"></div>
+
+<script>
+(() => {
+  // Pairing: the QR code opens /#t=<token>. Keep it in localStorage and drop it from the URL.
+  const m = location.hash.match(/t=([0-9a-f]+)/i);
+  if (m) { localStorage.setItem('echodeckToken', m[1]); history.replaceState(null, '', '/'); }
+  const token = localStorage.getItem('echodeckToken') || '';
+
+  const $ = id => document.getElementById(id);
+  let clips = [], libraryVersion = -1, filter = localStorage.getItem('echodeckFilter') || '★', paired = true;
+
+  async function api(path, method = 'GET') {
+    const res = await fetch('/api' + path, { method, headers: { 'X-Echodeck-Token': token }, cache: 'no-store' });
+    if (res.status === 401) { paired = false; showUnpaired(); throw new Error('unpaired'); }
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    return res.json();
+  }
+
+  function toast(text) {
+    const t = $('toast'); t.textContent = text; t.classList.add('show');
+    clearTimeout(toast.timer); toast.timer = setTimeout(() => t.classList.remove('show'), 1800);
+  }
+  const buzz = () => navigator.vibrate && navigator.vibrate(15);
+
+  async function act(path, label) {
+    buzz();
+    try { const r = await api(path, 'POST'); toast(r.message || label); refreshState(); }
+    catch (e) { if (paired) toast('Not connected to Echodeck'); }
+  }
+
+  function showUnpaired() {
+    $('main').innerHTML = '<div class="error"><h2>Not paired</h2>Open Echodeck on your PC → <b>Phone</b> tab, ' +
+      'then scan the QR code with this device\'s camera.</div>';
+    $('status').textContent = 'Not paired';
+    $('dot').className = 'dot off';
+  }
+
+  function renderChips() {
+    const cats = [...new Set(clips.map(c => c.category).filter(Boolean))].sort((a, b) => a.localeCompare(b));
+    const options = ['★', 'All', ...cats];
+    if (!options.includes(filter)) filter = clips.some(c => c.favorite) ? '★' : 'All';
+    $('chips').innerHTML = '';
+    for (const o of options) {
+      const b = document.createElement('button');
+      b.className = 'chip' + (o === filter ? ' sel' : '');
+      b.textContent = o === '★' ? '★ Favourites' : o;
+      b.onclick = () => { filter = o; localStorage.setItem('echodeckFilter', o); renderChips(); renderClips(); };
+      $('chips').appendChild(b);
+    }
+  }
+
+  function renderClips() {
+    const shown = clips.filter(c => filter === 'All' || (filter === '★' ? c.favorite : c.category === filter));
+    const main = $('main');
+    if (shown.length === 0) {
+      main.innerHTML = '<div class="empty">' + (clips.length === 0
+        ? 'No clips yet. Save some in Echodeck first.'
+        : filter === '★' ? 'No favourites yet — star clips in Echodeck\'s Soundboard tab, or pick "All".' : 'Nothing in this category.') + '</div>';
+      return;
+    }
+    const grid = document.createElement('div'); grid.className = 'grid';
+    for (const c of shown) {
+      const b = document.createElement('button'); b.className = 'tile';
+      const name = document.createElement('div'); name.className = 'name'; name.textContent = (c.favorite ? '★ ' : '') + c.name;
+      const meta = document.createElement('div'); meta.className = 'meta';
+      meta.textContent = c.duration.toFixed(1) + ' s' + (c.category ? ' · ' + c.category : '');
+      b.append(name, meta);
+      b.onclick = () => {
+        b.classList.add('flash'); setTimeout(() => b.classList.remove('flash'), 150);
+        act('/clips/' + c.id + '/play', 'Playing ' + c.name);
+      };
+      grid.appendChild(b);
+    }
+    main.innerHTML = ''; main.appendChild(grid);
+  }
+
+  async function loadClips() {
+    clips = await api('/clips');
+    clips.sort((a, b) => (b.favorite - a.favorite) || a.name.localeCompare(b.name));
+    renderChips(); renderClips();
+  }
+
+  let replayChoices = '';
+  async function refreshState() {
+    try {
+      const s = await api('/state');
+      paired = true;
+      $('dot').className = 'dot ' + (s.discordOutputActive ? 'on' : 'off');
+      $('status').textContent = s.discordOutputActive
+        ? (s.clipPlaying ? 'Playing into Discord…' : 'Connected · ready')
+        : 'Echodeck is running, but its Discord output is inactive';
+      const mute = $('mute');
+      mute.textContent = s.micMuted ? '🔇 Muted' : '🎤 Mic on';
+      mute.classList.toggle('muted', s.micMuted);
+      const choices = s.replayChoices.join(',');
+      if (choices !== replayChoices) {
+        replayChoices = choices;
+        $('replays').innerHTML = '';
+        for (const sec of s.replayChoices) {
+          const b = document.createElement('button'); b.className = 'replay';
+          b.textContent = '⟲ Replay ' + sec + ' s';
+          b.onclick = () => act('/replay/' + sec, 'Replaying ' + sec + ' s');
+          $('replays').appendChild(b);
+        }
+      }
+      if (s.libraryVersion !== libraryVersion) { libraryVersion = s.libraryVersion; await loadClips(); }
+    } catch (e) {
+      if (paired) { $('dot').className = 'dot off'; $('status').textContent = 'Can\'t reach Echodeck — same Wi-Fi? Is it running?'; }
+    }
+  }
+
+  $('stop').onclick = () => act('/stop', 'Stopped');
+  $('mute').onclick = () => act('/mic/toggle-mute', 'Mic toggled');
+
+  if (!token) showUnpaired();
+  else {
+    refreshState();
+    setInterval(() => { if (!document.hidden && paired) refreshState(); }, 1500);
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) refreshState(); });
+  }
+})();
+</script>
+</body>
+</html>
