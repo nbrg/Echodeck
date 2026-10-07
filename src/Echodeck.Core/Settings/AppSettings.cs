@@ -34,6 +34,31 @@ public sealed class AppSettings
 
     public WavSampleFormat ClipFileFormat { get; set; } = WavSampleFormat.Pcm16;
 
+    // ---- Phase 2: microphone → mixer → virtual cable → Discord
+
+    /// <summary>Endpoint ID of the physical microphone. Null = Windows default recording device.</summary>
+    public string? MicrophoneDeviceId { get; set; }
+
+    /// <summary>Endpoint ID of the render device feeding Discord. Null = auto-detect "CABLE Input".</summary>
+    public string? DiscordOutputDeviceId { get; set; }
+
+    /// <summary>Microphone volume, 1.0 = unchanged.</summary>
+    public double MicrophoneGain { get; set; } = 1.0;
+
+    /// <summary>Volume of clips sent to Discord.</summary>
+    public double SoundboardGain { get; set; } = 0.8;
+
+    public bool MicrophoneMuted { get; set; }
+
+    /// <summary>Let a new clip play on top of one already playing (otherwise it replaces it).</summary>
+    public bool AllowClipOverlap { get; set; }
+
+    /// <summary>Lower the mic while a clip plays. Off by default.</summary>
+    public bool DuckingEnabled { get; set; }
+
+    /// <summary>How much the mic is lowered while ducking, in dB (negative).</summary>
+    public double DuckingDb { get; set; } = -8;
+
     public static readonly int[] BufferDurationChoices = { 10, 15, 30, 45, 60 };
 
     /// <summary>Clamps values that may have been hand-edited into nonsense.</summary>
@@ -43,7 +68,13 @@ public sealed class AppSettings
         QuickSaveSeconds = Math.Clamp(QuickSaveSeconds, 1, ReplayBufferSeconds);
         if (!Enum.IsDefined(CaptureMode)) CaptureMode = DiscordCaptureMode.Auto;
         if (!Enum.IsDefined(ClipFileFormat)) ClipFileFormat = WavSampleFormat.Pcm16;
+        MicrophoneGain = Clamp(MicrophoneGain, 0, 2, 1);
+        SoundboardGain = Clamp(SoundboardGain, 0, 1.5, 0.8);
+        DuckingDb = Clamp(DuckingDb, -30, 0, -8);
     }
+
+    private static double Clamp(double value, double min, double max, double fallback) =>
+        double.IsFinite(value) ? Math.Clamp(value, min, max) : fallback;
 
     public AppSettings Clone() => (AppSettings)MemberwiseClone();
 }

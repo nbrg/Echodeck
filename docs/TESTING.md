@@ -45,6 +45,31 @@ friend (a second account on a phone works too).
 If step 1.2 shows a device-loopback method instead of per-process, copy the diagnostics and look at the
 "Capture method ProcessLoopback failed" log line. The HRESULT in that line identifies the cause.
 
+## Phase 2 checklist: mic + clips into Discord
+
+Preparation: VB-CABLE installed. Windows output and Discord output on your headset. Discord input on
+**CABLE Output**, input mode Voice Activity. Echodeck's Audio tab: your mic, "Auto — CABLE Input".
+
+| # | Step | Expected |
+|---|---|---|
+| 2.1 | Start Echodeck. | All three status cards say **Active**. No orange or red banner. |
+| 2.2 | Set Windows output to CABLE Input for a moment. | Within about 5 s a banner says you won't hear anything. Switch back and it disappears. |
+| 2.3 | Set Discord's input back to your real mic and talk. | A banner says friends won't hear clips. Set it back to CABLE Output. |
+| 2.4 | Talk. | The Microphone and Discord output meters move. Discord's input meter (Voice & Video → Mic Test) moves. Friends hear you, unchanged and without echo. |
+| 2.5 | Click **▶ Discord** on a saved clip while talking. | Friends hear the clip **and** your voice; your mic never cuts out. You don't hear yourself. |
+| 2.6 | Click **▶ Replay last 5 s to Discord** right after a friend speaks. | Friends hear their own sentence. |
+| 2.7 | Straight after 2.6, click **💾 Save last 10 s** and preview it. | Contains friends only. Your replay from 2.6 isn't in it, so there is no feedback loop. |
+| 2.8 | Play two clips quickly. | The second replaces the first. With "Let clips overlap" on, both play. |
+| 2.9 | Turn on ducking at −8 dB and play a clip while talking. | Your voice dips while the clip plays, then returns. |
+| 2.10 | Tick **Mute**. | Friends stop hearing you; clips still play. The card says MUTED. |
+| 2.11 | Unplug the headset, wait, then plug it back in. | Microphone shows Inactive, then Active again by itself. Discord never loses its input. |
+| 2.12 | **✂ Edit last 30 s…**: drag the markers, use Space to preview, Enter to play, Ctrl+S to save. | The playhead moves during preview. Enter plays only the selection into Discord. The saved file has the selected length. |
+| 2.13 | Edit a saved clip, rename it in the editor and save. | The list shows the new name and length, in the same position. |
+| 2.14 | Press F2 / Del on a clip, or use the Rename / 🗑 buttons. | Rename and delete work, delete asks for confirmation, and the files change in the clips folder. |
+| 2.15 | Start Echodeck a second time. | The existing window comes to the front and no second copy runs (check Task Manager). |
+| 2.16 | Check the taskbar and Alt+Tab. | The Echodeck icon is shown, not the default window icon. |
+| 2.17 | Talk for 2 hours, then **Copy diagnostics**. | The "Mic buffer" line shows a few underruns or drift corrections at most, with no growing latency. Memory is flat. |
+
 ## Full routing checklist (Phases 2–5)
 
 | # | Scenario | Pass criteria |

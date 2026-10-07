@@ -8,7 +8,13 @@
     <RootNamespace>Echodeck.App</RootNamespace>
     <AssemblyName>Echodeck</AssemblyName>
     <ApplicationManifest>app.manifest</ApplicationManifest>
+    <!-- Exe / taskbar / Alt-Tab icon. Regenerate with: python tools/make_icon.py src/Echodeck.App/Assets -->
+    <ApplicationIcon>Assets\echodeck.ico</ApplicationIcon>
   </PropertyGroup>
+
+  <ItemGroup>
+    <Resource Include="Assets\echodeck.ico" />
+  </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.2.2" />

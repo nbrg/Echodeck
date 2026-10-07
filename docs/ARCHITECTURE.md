@@ -141,24 +141,77 @@ monotonic clock every 50 ms and inserts silence, so the buffer always covers rea
 | A source faults | The source is disposed and restarted, with progressive back-off up to 20 s. |
 | Settings change | Only capture-related settings restart capture. |
 
-## 4. Mixing microphone and soundboard into Discord (Phase 2)
+## 4. Mixing microphone and soundboard into Discord
 
-* **Microphone:** `WasapiCapture` in shared, event-driven mode with 10 ms buffers, converted to 48 kHz
-  stereo float and written into a small SPSC ring buffer.
-* **Output:** `WasapiOut` on CABLE Input, shared and event-driven, with about 20 ms latency. Its render
-  callback **pulls** from `MixerSampleProvider`:
-  * mic samples from the ring buffer, then mic gain
-  * active clip voices, then soundboard gain. One voice at a time by default: a new clip replaces the
-    current one. Overlap can be turned on.
-  * optional ducking, which lowers the mic while a clip plays (off by default)
-  * a soft limiter on the sum, so mic and clip together never clip
-  * peak meters for the mic and for Discord outgoing
-* **Clock drift.** The mic and VB-CABLE run on different clocks, so the mic ring buffer slowly fills
-  or drains. The mixer aims for about 20 ms of fill and drops or repeats single frames when it
-  drifts past that window. Without this, latency would creep up over hours.
-* If the mic is lost, the mixer outputs clips plus silence and the device service reopens the mic. The
-  output to Discord never stops, so Discord never sees the virtual mic disappear.
-* Your voice is untouched: no processing apart from your own gain setting, which defaults to 1.0.
+```
+mic ─WasapiCapture (shared, event, 20 ms)─► CaptureFormatConverter ─► MicJitterBuffer (SPSC ring)
+                                                                            │ pulled
+clips ─ClipVoice (5 ms edge fades)─────────────────────────────► MixerEngine.Render ─► SoftLimiter
+                                                                            │
+                                     VirtualOutputService: WasapiOut on CABLE Input (shared, event, 30 ms)
+```
+
+* **Pull model.** The CABLE Input output thread asks for about 10 ms of audio at a time, and
+  `MixerEngine.Render` produces exactly that. The output device's clock drives everything, so
+  latency is fixed.
+* **Microphone** (`MicrophoneCaptureService`): shared-mode `WasapiCapture`, converted once to
+  48 kHz stereo float. Nothing is processed except your volume setting. The mic is read even while
+  muted, so its buffer stays at the target latency.
+* **Clock drift** (`MicJitterBuffer`). The mic and VB-CABLE run on different crystals, so the mic
+  buffer slowly fills or drains. The buffer is primed to 20 ms. While the backlog is above about
+  40 ms it drops one frame per block, which is inaudible. Past 150 ms it jumps straight back to the
+  target. When it runs dry it outputs silence and re-primes. Unit tests run the mic 1 % fast or slow
+  for thousands of blocks and assert that latency stays bounded.
+* **Clips** (`ClipVoice`). By default a new clip replaces the one playing, with a 30 ms fade;
+  overlapping can be turned on. Clip edges get a 5 ms fade so a trimmed clip never clicks.
+* **Ducking** (off by default) lowers the mic by a set number of dB while a clip plays. The gain
+  ramps over 40 ms so the level change doesn't produce zipper noise.
+* **Limiter** (`SoftLimiter`): stereo-linked, instant attack, 150 ms release, −1 dBFS ceiling. It
+  does nothing at normal levels and prevents harsh clipping when mic and clip are loud together.
+* **Device format.** VB-CABLE often defaults to 44.1 kHz. `VirtualOutputService` converts to the
+  device's own mix format (WDL resampler, channel adapter), so Windows never rejects or silently
+  converts the stream.
+* **Recovery.** `MicrophoneCaptureService` and `VirtualOutputService` share `SupervisedEndpoint`, a
+  2 s supervisor that reopens a stream after a fault, a settings change, its own device disappearing,
+  or a change of the Windows default device it follows. Plugging in an unrelated USB device does not
+  glitch the stream. If the mic is lost, the output keeps running with clips plus silence, so
+  Discord's input never disappears.
+* **Safety.** A virtual cable is never opened as the microphone, even if it is the Windows default
+  recording device, because that would feed Echodeck's output back into itself.
+
+### Setup check (`AudioSetupMonitor` + `AudioSetupRules`)
+
+Every 5 s, and soon after any device or settings change, Echodeck compares the actual routing with
+the expected one. Discord's **real** input and output devices are found through its active audio
+sessions. Problems are shown as a banner with the fix:
+
+* Windows output set to a CABLE device (you hear nothing)
+* VB-CABLE missing
+* Echodeck's Discord output not a cable
+* Echodeck's mic is a cable
+* previews going into the cable
+* Discord's output on the cable
+* Discord's input not the cable
+
+Nothing is changed automatically. The rules are platform-neutral and unit-tested.
+
+### Clip editor
+
+`ClipEditorWindow` and `WaveformView` work on an in-memory copy of the clip:
+
+* drag the markers, drag across the waveform to make a new selection, or click to move the nearest marker
+* keys: Space, Enter, Ctrl+S, Esc, and arrow nudges
+* Save writes once, in place; the clip keeps its creation date
+* rename, Save as copy, and Save + Play are also available
+
+The same editor opens a fresh capture of the replay buffer (**Edit last 30 s…**). Phase 3 attaches
+that to a hotkey.
+
+### Single instance
+
+A named mutex (`Local\Echodeck.SingleInstance`) allows one copy per Windows session. A second
+launch signals a named event so the running window comes to the front, then exits. Two copies would
+both send your mic into the cable.
 
 ## Avoiding feedback loops
 
@@ -233,8 +286,8 @@ Runtime data lives in `%AppData%\Echodeck\`:
 
 | Phase | Scope | Status |
 |---|---|---|
-| 1 | Discord detection, per-process capture with fallbacks, 30 s rolling buffer, save last N s as WAV, local preview, logging and diagnostics | **this commit** |
-| 2 | Mic capture, VB-CABLE output, mixer (gain, limiter, meters, optional ducking), play clip to Discord | next |
-| 3 | `HotkeyService` (`RegisterHotKey`), quick replay actions (3/5/10 s straight to Discord), replay editor with waveform, markers and keyboard control | |
+| 1 | Discord detection, per-process capture with fallbacks, 30 s rolling buffer, save last N s as WAV, local preview, logging and diagnostics | done |
+| 2 | Mic capture, VB-CABLE output, mixer (gain, limiter, meters, optional ducking), play clip to Discord, setup warnings. Brought forward: waveform editor with trimming, rename/delete, single instance, app icon | **this commit** |
+| 3 | `HotkeyService` (`RegisterHotKey`), global hotkeys for quick replay (3/5/10 s straight to Discord) and for opening the editor | next |
 | 4 | Soundboard library (`clips.json`), per-clip hotkeys, categories, search, sort, favourites | |
 | 5 | Navigation UI, tray, start minimised or with Windows, Setup page, device-recovery polish, optional installer/auto-update (single-file exe releases already exist) | |

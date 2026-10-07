@@ -59,6 +59,44 @@ public sealed class ReplayService
         });
     }
 
+    /// <summary>
+    /// Replaces a saved clip's audio (e.g. after trimming) and optionally renames it.
+    /// The original creation date is kept so the clip doesn't jump to the top of the list.
+    /// </summary>
+    public Task<SavedClipInfo> OverwriteAsync(SavedClipInfo existing, AudioClip clip, string newName)
+    {
+        WavSampleFormat format = _settings.Current.ClipFileFormat;
+        return Task.Run(() =>
+        {
+            DateTime created = File.Exists(existing.FilePath) ? File.GetCreationTime(existing.FilePath) : DateTime.Now;
+            string target = RenamedPath(existing.FilePath, newName);
+            WavFileWriter.Write(target, clip.Samples, clip.Format, format);
+            if (!PathsEqual(target, existing.FilePath)) File.Delete(existing.FilePath);
+            File.SetCreationTime(target, created);
+            _logger.LogInformation("Clip updated: {Path} ({Duration:F2}s)", target, clip.Duration.TotalSeconds);
+            return new SavedClipInfo(target, Path.GetFileNameWithoutExtension(target), created, clip.Duration);
+        });
+    }
+
+    /// <summary>Renames a saved clip's file. Returns the updated info.</summary>
+    public SavedClipInfo Rename(SavedClipInfo clip, string newName)
+    {
+        string target = RenamedPath(clip.FilePath, newName);
+        if (PathsEqual(target, clip.FilePath)) return clip;
+        File.Move(clip.FilePath, target);
+        _logger.LogInformation("Clip renamed: {Old} → {New}", Path.GetFileName(clip.FilePath), Path.GetFileName(target));
+        return clip with { FilePath = target, Name = Path.GetFileNameWithoutExtension(target) };
+    }
+
+    public void Delete(SavedClipInfo clip)
+    {
+        File.Delete(clip.FilePath);
+        _logger.LogInformation("Clip deleted: {Path}", clip.FilePath);
+    }
+
+    /// <summary>Decodes a saved clip into memory in the internal 48 kHz stereo format.</summary>
+    public Task<AudioClip> LoadAsync(SavedClipInfo clip) => Task.Run(() => ClipFileLoader.Load(clip.FilePath));
+
     /// <summary>Lists saved WAV clips, newest first.</summary>
     public IReadOnlyList<SavedClipInfo> GetSavedClips()
     {
@@ -80,6 +118,17 @@ public sealed class ReplayService
         }
         return result.OrderByDescending(c => c.CreatedAt).ToList();
     }
+
+    private static string RenamedPath(string currentPath, string newName)
+    {
+        string directory = Path.GetDirectoryName(currentPath)!;
+        string baseName = SanitizeFileName(newName);
+        string target = Path.Combine(directory, baseName + ".wav");
+        return PathsEqual(target, currentPath) ? currentPath : UniquePath(directory, baseName, ".wav");
+    }
+
+    private static bool PathsEqual(string a, string b) =>
+        string.Equals(Path.GetFullPath(a), Path.GetFullPath(b), StringComparison.OrdinalIgnoreCase);
 
     private static string SanitizeFileName(string name)
     {
