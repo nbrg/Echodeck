@@ -26,7 +26,12 @@
   .grow { flex: 1; }
   .title { font-weight: 700; font-size: 18px; display: flex; align-items: center; gap: 8px; }
   .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--muted); }
-  .dot.on { background: var(--ok); } .dot.off { background: var(--danger); }
+  .dot.on { background: var(--ok); } .dot.off { background: var(--danger); } .dot.warn { background: #f0b232; }
+  #problems { margin-top: 8px; }
+  .banner { border-radius: 10px; padding: 10px 12px; font-size: 14px; margin-top: 6px; line-height: 1.35; }
+  .banner.error { background: rgba(218,55,60,.18); border: 1px solid rgba(218,55,60,.6); }
+  .banner.warning { background: rgba(240,178,50,.14); border: 1px solid rgba(240,178,50,.55); }
+  .banner .more { color: var(--muted); font-size: 13px; margin-top: 4px; }
   .status { color: var(--muted); font-size: 13px; }
   button { font: inherit; color: var(--text); border: 0; border-radius: 12px; background: var(--panel);
     padding: 12px 14px; cursor: pointer; touch-action: manipulation; }
@@ -54,6 +59,8 @@
     background: var(--panel); padding: 10px 16px; border-radius: 999px; font-size: 14px; opacity: 0; transition: opacity 0.2s;
     pointer-events: none; max-width: 90vw; text-align: center; z-index: 10; }
   #toast.show { opacity: 1; }
+  #toast.error { background: var(--danger); }
+  #toast.warning { background: #9a6b00; }
 
   /* trim editor */
   #editor { display: none; padding-top: 10px; }
@@ -81,6 +88,7 @@
     <button id="stop">■ Stop</button>
   </div>
   <div id="status" class="status">Connecting…</div>
+  <div id="problems"></div>
 </header>
 
 <section id="board">
@@ -135,16 +143,26 @@
   }
   const json = async (path, method, body) => (await api(path, method, body)).json();
 
-  function toast(text) {
-    const t = $('toast'); t.textContent = text; t.classList.add('show');
-    clearTimeout(toast.timer); toast.timer = setTimeout(() => t.classList.remove('show'), 2000);
+  // kind: '' (ok), 'warning' or 'error'. Problems stay up longer so there's time to read them.
+  function toast(text, kind = '') {
+    const t = $('toast'); t.textContent = text; t.className = 'show ' + kind;
+    clearTimeout(toast.timer); toast.timer = setTimeout(() => t.className = kind, kind ? 5000 : 2000);
   }
   const buzz = () => navigator.vibrate && navigator.vibrate(15);
 
   async function act(path, body) {
     buzz();
-    try { const r = await json(path, 'POST', body); toast(r.message || 'Done'); refreshState(); return r; }
-    catch (e) { if (paired) toast(e.message === 'Failed to fetch' ? 'Not connected to Echodeck' : e.message); return null; }
+    try {
+      const r = await json(path, 'POST', body);
+      toast(r.message || 'Done', !r.ok ? 'error' : r.warning ? 'warning' : '');
+      refreshState();
+      return r;
+    } catch (e) {
+      if (paired) toast(e.message === 'Failed to fetch' || e.message === 'Load failed'
+        ? 'Can\'t reach Echodeck on your PC — is it running, and is this device on the same Wi-Fi?'
+        : 'Echodeck error: ' + e.message, 'error');
+      return null;
+    }
   }
 
   function showUnpaired() {
@@ -228,22 +246,51 @@
     });
   }
 
+  // Banner listing what's wrong (worst first); tap it to see the rest.
+  let problemsExpanded = false, problemKey = '';
+  function renderProblems(list) {
+    const worst = list.some(p => p.severity === 'error') ? 'off' : list.length ? 'warn' : 'on';
+    $('dot').className = 'dot ' + worst;
+    const key = JSON.stringify(list);
+    if (key === problemKey) return;
+    problemKey = key;
+    const box = $('problems'); box.innerHTML = '';
+    if (!list.length) return;
+    const shown = problemsExpanded ? list : list.slice(0, 1);
+    for (const p of shown) {
+      const b = document.createElement('div'); b.className = 'banner ' + p.severity;
+      b.textContent = (p.severity === 'error' ? '✖ ' : '⚠ ') + p.message;
+      box.appendChild(b);
+    }
+    if (list.length > 1) {
+      const more = document.createElement('div'); more.className = 'more';
+      more.textContent = problemsExpanded ? 'Tap to collapse' : '+' + (list.length - 1) + ' more — tap to see';
+      box.lastChild.appendChild(more);
+    }
+    box.onclick = () => { problemsExpanded = !problemsExpanded; problemKey = ''; renderProblems(list); };
+  }
+
   async function refreshState() {
     try {
       const s = await json('/state');
       paired = true;
-      $('dot').className = 'dot ' + (s.discordOutputActive ? 'on' : 'off');
+      renderProblems(s.problems || []);
       if (!document.body.classList.contains('editing'))
-        $('status').textContent = s.discordOutputActive
-          ? (s.clipPlaying ? 'Playing into Discord…' : s.captureActive ? 'Connected · recording replay buffer' : 'Connected · replay buffer not recording')
-          : 'Echodeck is running, but its Discord output is inactive';
+        // Details of anything wrong are in the banner below; this line is just the happy-path status.
+        $('status').textContent = s.clipPlaying ? 'Playing into Discord…'
+          : (s.problems || []).length ? 'Connected to Echodeck'
+          : 'Connected · ready · recording replay buffer';
       $('mute').textContent = s.micMuted ? '🔇 Muted' : '🎤 Mic on';
       $('mute').classList.toggle('muted', s.micMuted);
       renderSaves(s.saveChoices);
       syncRemotePlaying(s);
       if (s.libraryVersion !== libraryVersion) { libraryVersion = s.libraryVersion; await loadClips(); }
     } catch (e) {
-      if (paired) { $('dot').className = 'dot off'; $('status').textContent = 'Can\'t reach Echodeck — same Wi-Fi? Is it running?'; }
+      if (paired) {
+        $('dot').className = 'dot off';
+        $('status').textContent = 'Can\'t reach Echodeck — is it running on your PC, and is this device on the same Wi-Fi?';
+        problemKey = ''; $('problems').innerHTML = '';
+      }
     }
   }
 

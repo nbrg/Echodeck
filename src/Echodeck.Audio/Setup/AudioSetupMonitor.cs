@@ -10,6 +10,19 @@ using NAudio.CoreAudioApi;
 namespace Echodeck.Audio.Setup;
 
 /// <summary>
+/// What Discord is doing right now, from its live audio sessions. Discord only opens its
+/// microphone while you're in a voice channel (or in the mic test), so an active capture session
+/// is a reliable "in a call" signal.
+/// </summary>
+public sealed record DiscordVoiceStatus(bool Running, bool InVoice, string? InputDevice)
+{
+    public static DiscordVoiceStatus Unknown { get; } = new(false, false, null);
+
+    /// <summary>In a call, but Discord's mic isn't the virtual cable, so friends won't hear clips.</summary>
+    public bool InputIsNotCable => InVoice && !AudioSetupRules.IsVirtualCable(InputDevice);
+}
+
+/// <summary>
 /// Periodically (every 5 s, and shortly after any device or settings change) checks the whole
 /// audio routing against <see cref="AudioSetupRules"/> and publishes the problems found.
 /// Discord's real input/output devices are discovered through its active audio sessions, so the
@@ -45,6 +58,9 @@ public sealed class AudioSetupMonitor : IDisposable
     }
 
     public IReadOnlyList<SetupIssue> Issues => Volatile.Read(ref _issues);
+
+    /// <summary>Discord running / in a voice channel, refreshed with every check (≤ 5 s old).</summary>
+    public DiscordVoiceStatus DiscordVoice { get; private set; } = DiscordVoiceStatus.Unknown;
 
     /// <summary>Raised on a background thread when the set of issues changes.</summary>
     public event EventHandler<IReadOnlyList<SetupIssue>>? IssuesChanged;
@@ -111,6 +127,7 @@ public sealed class AudioSetupMonitor : IDisposable
             discordOut = _devices.FindDeviceForProcesses(discord.ProcessIds, null, DataFlow.Render, activeOnly: true)?.DeviceName;
             discordIn = _devices.FindDeviceForProcesses(discord.ProcessIds, null, DataFlow.Capture, activeOnly: true)?.DeviceName;
         }
+        DiscordVoice = new DiscordVoiceStatus(discord is not null, discordIn is not null, discordIn);
 
         return new AudioSetupSnapshot(
             VirtualCableInstalled: cableIn is not null && cableOut is not null,

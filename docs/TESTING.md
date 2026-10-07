@@ -97,6 +97,9 @@ Preparation: VB-CABLE installed. Windows output and Discord output on your heads
 | P.1 | Phone tab: enable, allow the firewall prompt, scan the QR code. | The page shows your clips. Tapping one plays it into Discord. Stop and Mute work. |
 | P.1a | In game, a friend says something, then tap **💾 Save last 5 s** on the phone. | The trim editor opens on the phone with the waveform. Drag the handles; **🎧 PC headset** plays the selection in your headset; **📢 Discord** plays it to friends; **💾 Save** trims it. The PC shows the new clip too. |
 | P.1b | ✂ on an older clip: rename it, **Save copy**, then **🗑 Delete** the original. | The copy appears under the new name and the original is gone, on both phone and PC. |
+| P.1c | With Discord closed, then running but not in a voice channel: check the phone and tap a clip. | Red "Discord isn't running" banner, and the tap is refused with a red message. Out of voice: amber banner, and the tap plays but warns that nobody heard it. |
+| P.1d | Pause the replay buffer (tray), then tap **💾 Save** on the phone. | A red message says it wasn't saved and why. The editor doesn't open. |
+| P.1e | Quit Echodeck while the phone page is open. | The phone shows "Can't reach Echodeck…" until it's running again. |
 | P.2 | Add to Home Screen on the iPad. | Opens full-screen and stays paired. |
 | P.3 | Click "New pairing code". | The old phone shows "Not paired" until it re-scans. |
 | P.4 | Open the link without the `#t=` part on another device. | It shows "Not paired" and can't trigger anything. |
