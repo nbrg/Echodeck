@@ -18,7 +18,9 @@ public sealed record RemoteState(bool MicMuted, bool DiscordOutputActive, bool C
     long LibraryVersion, IReadOnlyList<int> SaveChoices, bool PreviewPlaying = false,
     IReadOnlyList<RemoteProblem>? Problems = null);
 
-public sealed record RemoteClip(Guid Id, string Name, string? Category, bool Favorite, double Duration, DateTime CreatedAt);
+/// <param name="Transcript">What's said in the clip (local speech recognition); null while not transcribed.</param>
+public sealed record RemoteClip(Guid Id, string Name, string? Category, bool Favorite, double Duration, DateTime CreatedAt,
+    string? Transcript = null);
 
 /// <param name="ClipId">Set when the action created or changed a clip (e.g. "save last N s").</param>
 /// <param name="Warning">It worked, but something is off (e.g. Discord isn't in a voice channel).</param>
@@ -35,6 +37,10 @@ public sealed record RemoteWaveform(double Duration, IReadOnlyList<int> Peaks);
 public sealed record RangeRequest(double Start, double End, string? Name = null, bool AsCopy = false);
 
 public sealed record RenameRequest(string Name);
+public sealed record FavoriteRequest(bool Favorite);
+/// <param name="Category">The category (created if new); null or blank removes it.</param>
+public sealed record CategoryRequest(string? Category);
+public sealed record NewCategoryRequest(string Name);
 
 /// <summary>What the phone can see and do. Implemented by the app.</summary>
 public interface IRemoteBackend
@@ -56,6 +62,15 @@ public interface IRemoteBackend
     Task<RemoteResult> SaveTrimAsync(Guid id, RangeRequest range);
     Task<RemoteResult> RenameAsync(Guid id, string name);
     Task<RemoteResult> DeleteAsync(Guid id);
+
+    // Library management
+    /// <summary>Every category, including empty ones (e.g. a friend with no clips yet).</summary>
+    IReadOnlyList<string> GetCategories();
+    Task<RemoteResult> SetFavoriteAsync(Guid id, bool favorite);
+    Task<RemoteResult> SetCategoryAsync(Guid id, string? category);
+    Task<RemoteResult> AddCategoryAsync(string name);
+    /// <summary>Plays the newest clip into Discord.</summary>
+    Task<RemoteResult> PlayLastAsync();
 }
 
 /// <summary>
@@ -98,7 +113,7 @@ public sealed class RemoteServer : IAsyncDisposable
         {
             o.ListenAnyIP(port);
             o.AddServerHeader = false;
-            o.Limits.MaxRequestBodySize = 8192; // only small JSON bodies (trim ranges, names)
+            o.Limits.MaxRequestBodySize = 8192; // only small JSON bodies (trim ranges, names, categories)
         });
         builder.Logging.ClearProviders();
         if (_logProvider is not null) builder.Logging.AddProvider(_logProvider);
@@ -150,6 +165,11 @@ public sealed class RemoteServer : IAsyncDisposable
         api.MapPost("/clips/{id:guid}/trim", (Guid id, RangeRequest range) => backend.SaveTrimAsync(id, range));
         api.MapPost("/clips/{id:guid}/rename", (Guid id, RenameRequest req) => backend.RenameAsync(id, req.Name ?? ""));
         api.MapPost("/clips/{id:guid}/delete", (Guid id) => backend.DeleteAsync(id));
+        api.MapGet("/categories", () => backend.GetCategories());
+        api.MapPost("/categories", (NewCategoryRequest req) => backend.AddCategoryAsync(req.Name ?? ""));
+        api.MapPost("/clips/{id:guid}/favorite", (Guid id, FavoriteRequest req) => backend.SetFavoriteAsync(id, req.Favorite));
+        api.MapPost("/clips/{id:guid}/category", (Guid id, CategoryRequest req) => backend.SetCategoryAsync(id, req.Category));
+        api.MapPost("/play-last", () => backend.PlayLastAsync());
         api.MapPost("/stop", () => backend.StopAsync());
         api.MapPost("/mic/toggle-mute", () => backend.ToggleMuteAsync());
 

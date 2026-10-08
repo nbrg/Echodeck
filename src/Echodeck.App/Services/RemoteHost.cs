@@ -170,7 +170,7 @@ public sealed class RemoteHost : IRemoteBackend, IDisposable, IAsyncDisposable
 
     public IReadOnlyList<RemoteClip> GetClips() =>
         _soundboard.Library.Clips
-            .Select(c => new RemoteClip(c.Id, c.Name, c.Category, c.IsFavorite, Math.Round(c.DurationSeconds, 1), c.CreatedAt))
+            .Select(c => new RemoteClip(c.Id, c.Name, c.Category, c.IsFavorite, Math.Round(c.DurationSeconds, 1), c.CreatedAt, c.Transcript))
             .ToList();
 
     public Task<RemoteResult> PlayClipAsync(Guid id) => OnUi(async () => ToRemote(await _actions.PlayClipAsync(id)));
@@ -245,6 +245,35 @@ public sealed class RemoteHost : IRemoteBackend, IDisposable, IAsyncDisposable
         _soundboard.Delete(id);
         return Task.FromResult(new RemoteResult(true, "Deleted"));
     });
+
+    // ------------------------------------------------------------------ library management
+
+    public IReadOnlyList<string> GetCategories() => _soundboard.Library.Categories;
+
+    public Task<RemoteResult> SetFavoriteAsync(Guid id, bool favorite) => OnUi(() =>
+    {
+        var clip = _soundboard.Update(id, c => c.IsFavorite = favorite);
+        return Task.FromResult(clip is null
+            ? new RemoteResult(false, "That clip no longer exists")
+            : new RemoteResult(true, favorite ? $"★ \"{clip.Name}\" is a favourite" : $"\"{clip.Name}\" is no longer a favourite", id));
+    });
+
+    public Task<RemoteResult> SetCategoryAsync(Guid id, string? category) => OnUi(() =>
+    {
+        var clip = _soundboard.Library.SetCategory(id, category);
+        return Task.FromResult(clip is null
+            ? new RemoteResult(false, "That clip no longer exists")
+            : new RemoteResult(true, clip.Category is null ? $"\"{clip.Name}\" has no category" : $"\"{clip.Name}\" → {clip.Category}", id));
+    });
+
+    public Task<RemoteResult> AddCategoryAsync(string name) => OnUi(() =>
+    {
+        if (ClipLibraryStore.CleanCategory(name) is null) return Task.FromResult(new RemoteResult(false, "A category needs a name"));
+        string created = _soundboard.Library.AddCategory(name);
+        return Task.FromResult(new RemoteResult(true, $"Category \"{created}\" ready"));
+    });
+
+    public Task<RemoteResult> PlayLastAsync() => OnUi(async () => ToRemote(await _actions.PlayLastSavedAsync()));
 
     /// <summary>Loads a clip and cuts out the requested range (clamped, at least 50 ms).</summary>
     private async Task<(SoundboardClip Entry, AudioClip Selection)> SliceAsync(Guid id, RangeRequest range)

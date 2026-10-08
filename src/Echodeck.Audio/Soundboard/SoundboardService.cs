@@ -148,6 +148,7 @@ public sealed class SoundboardService : IDisposable
             c.FileName = Path.GetFileName(target);
             c.Name = Path.GetFileNameWithoutExtension(target);
             c.DurationSeconds = clip.Duration.TotalSeconds;
+            c.Transcript = null; // the audio changed: transcribe it again
         })!;
         _logger.LogInformation("Clip updated: {Name} ({Duration:F2}s)", updated.Name, updated.DurationSeconds);
         return updated;

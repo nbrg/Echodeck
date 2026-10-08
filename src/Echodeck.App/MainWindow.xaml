@@ -156,6 +156,15 @@
                                 <MenuItem Header="Rename…" InputGestureText="F2" Command="{Binding Soundboard.RenameCommand}" />
                                 <MenuItem Header="Duplicate" Command="{Binding Soundboard.DuplicateCommand}" />
                                 <MenuItem Header="★ Favourite on/off" Command="{Binding Soundboard.ToggleFavoriteCommand}" />
+                                <MenuItem Header="🏷 Category" ItemsSource="{Binding Soundboard.CategoryMenu}">
+                                    <MenuItem.ItemContainerStyle>
+                                        <Style TargetType="MenuItem">
+                                            <Setter Property="Header" Value="{Binding Header}" />
+                                            <Setter Property="Command" Value="{Binding DataContext.Soundboard.AssignCategoryCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
+                                            <Setter Property="CommandParameter" Value="{Binding}" />
+                                        </Style>
+                                    </MenuItem.ItemContainerStyle>
+                                </MenuItem>
                                 <Separator />
                                 <MenuItem Header="🗑 Delete" InputGestureText="Del" Command="{Binding Soundboard.DeleteCommand}" />
                             </ContextMenu>
@@ -205,8 +214,15 @@
                                 <Button Content="Open folder" Command="{Binding OpenFolderCommand}" Margin="0" />
                             </StackPanel>
                             <TextBox Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged, Delay=150}"
-                                     Width="200" Padding="4,3" Margin="0,0,6,0" ToolTip="Search name, category or hotkey" />
-                            <ComboBox ItemsSource="{Binding Filters}" SelectedItem="{Binding SelectedFilter}" Width="150" Margin="0,0,6,0" />
+                                     Width="200" Padding="4,3" Margin="0,0,6,0" ToolTip="Search names, categories, hotkeys and what's said in clips" />
+                            <ComboBox ItemsSource="{Binding Filters}" SelectedItem="{Binding SelectedFilter}" Width="150" Margin="0,0,4,0"
+                                      ToolTip="Show all clips, favourites, or one category (e.g. one friend)" />
+                            <Button Content="＋" Command="{Binding NewCategoryCommand}" Padding="8,2" Margin="0,0,4,0"
+                                    ToolTip="New category, e.g. one per friend. Put clips in it with right-click → Category." />
+                            <Button Content="✎" Command="{Binding RenameCategoryCommand}" Padding="8,2" Margin="0,0,4,0" ToolTip="Rename this category"
+                                    Visibility="{Binding IsCategoryFilter, Converter={StaticResource BoolToVisibility}}" />
+                            <Button Content="🗑" Command="{Binding DeleteCategoryCommand}" Padding="8,2" Margin="0,0,6,0" ToolTip="Delete this category (its clips are kept)"
+                                    Visibility="{Binding IsCategoryFilter, Converter={StaticResource BoolToVisibility}}" />
                             <ComboBox ItemsSource="{Binding SortOptions}" SelectedItem="{Binding SelectedSort}" Width="130" />
                             <TextBlock Text="{Binding CountText}" Foreground="#777" VerticalAlignment="Center" Margin="10,0,0,0" />
                         </DockPanel>
@@ -223,6 +239,15 @@
                                 <MenuItem Header="Rename…" InputGestureText="F2" Command="{Binding RenameCommand}" />
                                 <MenuItem Header="Duplicate" Command="{Binding DuplicateCommand}" />
                                 <MenuItem Header="★ Favourite on/off" Command="{Binding ToggleFavoriteCommand}" />
+                                <MenuItem Header="🏷 Category" ItemsSource="{Binding CategoryMenu}">
+                                    <MenuItem.ItemContainerStyle>
+                                        <Style TargetType="MenuItem">
+                                            <Setter Property="Header" Value="{Binding Header}" />
+                                            <Setter Property="Command" Value="{Binding DataContext.AssignCategoryCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
+                                            <Setter Property="CommandParameter" Value="{Binding}" />
+                                        </Style>
+                                    </MenuItem.ItemContainerStyle>
+                                </MenuItem>
                                 <Separator />
                                 <MenuItem Header="🗑 Delete" InputGestureText="Del" Command="{Binding DeleteCommand}" />
                             </ContextMenu>
@@ -289,9 +314,11 @@
                                     <Run Text="{Binding DurationText, Mode=OneWay}" /><Run Text=" · created " /><Run Text="{Binding CreatedAt, Mode=OneWay, StringFormat={}{0:yyyy-MM-dd HH:mm}}" />
                                 </TextBlock>
 
+                                <TextBlock Text="{Binding TranscriptText}" TextWrapping="Wrap" FontStyle="Italic" Foreground="#555" Margin="0,6,0,0"
+                                           ToolTip="What's said in the clip (recognised on this PC). Search finds clips by it." />
                                 <CheckBox Content="★ Favourite" IsChecked="{Binding IsFavorite}" Margin="0,10,0,0" />
 
-                                <TextBlock Text="Category" Style="{StaticResource Label}" Margin="0,10,0,3" />
+                                <TextBlock Text="Category (type a new name to create one)" Style="{StaticResource Label}" Margin="0,10,0,3" />
                                 <ComboBox IsEditable="True" Text="{Binding Category, UpdateSourceTrigger=LostFocus}"
                                           ItemsSource="{Binding DataContext.Categories, ElementName=ClipDetails}" />
 
@@ -396,6 +423,26 @@
                                 </TextBlock>
                                 <Slider Minimum="0" Maximum="150" Value="{Binding HeadphoneClipVolume}" TickFrequency="5" IsSnapToTickEnabled="True" VerticalAlignment="Center" />
                             </DockPanel>
+
+                            <TextBlock Text="Push to talk" Style="{StaticResource SectionHeader}" />
+                            <CheckBox Content="I use Push to Talk in Discord: hold a key while clips play" IsChecked="{Binding PushToTalkEnabled}" />
+                            <StackPanel Margin="20,6,0,0" IsEnabled="{Binding PushToTalkEnabled}">
+                                <TextBlock Style="{StaticResource Hint}" TextWrapping="Wrap"
+                                           Text="Echodeck holds its own key while a clip plays, so friends hear it without you pressing anything. Your usual push-to-talk key keeps working. One-time setup in Discord: User Settings → Keybinds → Add a Keybind → Action: Push to Talk (Normal) → Record Keybind, then click the button below (no keyboard has F13–F24, so Echodeck presses it for you)." />
+                                <DockPanel Margin="0,8,0,0">
+                                    <TextBlock Text="Key" Style="{StaticResource Label}" Width="60" VerticalAlignment="Center" />
+                                    <ComboBox ItemsSource="{Binding PushToTalkKeyChoices}" SelectedItem="{Binding PushToTalkKey}" Width="70" />
+                                    <Button Content="Press it for Discord (5 s countdown)" Command="{Binding TeachDiscordCommand}" Margin="8,0,0,0" HorizontalAlignment="Left" />
+                                </DockPanel>
+                                <TextBlock Text="{Binding PushToTalkStatus}" TextWrapping="Wrap" Margin="0,6,0,0" Foreground="#4752C4" />
+                                <DockPanel Margin="0,6,0,0">
+                                    <TextBlock Style="{StaticResource Label}" Width="170" VerticalAlignment="Center">
+                                        <Run Text="Head start before clips " /><Run Text="{Binding PushToTalkLeadMs, Mode=OneWay, StringFormat={}{0:0} ms}" />
+                                    </TextBlock>
+                                    <Slider Minimum="0" Maximum="500" Value="{Binding PushToTalkLeadMs, Delay=250}" TickFrequency="25" IsSnapToTickEnabled="True" VerticalAlignment="Center"
+                                            ToolTip="How long the key is held before the clip starts. Raise it if friends miss the first word." />
+                                </DockPanel>
+                            </StackPanel>
                         </StackPanel>
                     </Grid>
                 </ScrollViewer>
@@ -554,6 +601,45 @@
                         <CheckBox Content="Closing the window keeps Echodeck running in the tray" IsChecked="{Binding CloseToTray}" Margin="0,0,0,6" />
                         <CheckBox Content="Start minimised to the tray" IsChecked="{Binding StartMinimized}" Margin="0,0,0,6" />
                         <CheckBox Content="Start Echodeck when I sign in to Windows" IsChecked="{Binding StartWithWindows}" />
+
+                        <TextBlock Text="Clip search: recognise what's said" Style="{StaticResource SectionHeader}" />
+                        <CheckBox Content="Recognise speech in my clips, so I can search them by what's said (on this PC, offline)" IsChecked="{Binding TranscriptionEnabled}" />
+                        <TextBlock Style="{StaticResource Hint}" TextWrapping="Wrap" Margin="20,2,0,0"
+                                   Text="Downloads a speech model once (142 MB). Nothing is uploaded: recognition runs on your PC in the background with low priority, about a second per clip. Search in the Soundboard tab and on the phone then also finds clips by their words." />
+                        <Grid Margin="20,8,0,0" IsEnabled="{Binding TranscriptionEnabled}">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="90" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+                            <TextBlock Text="Model" Style="{StaticResource Label}" VerticalAlignment="Center" />
+                            <ComboBox Grid.Column="1" ItemsSource="{Binding SpeechModelChoices}" SelectedItem="{Binding SelectedSpeechModel}" MaxWidth="360" HorizontalAlignment="Left" MinWidth="300" />
+                            <TextBlock Grid.Row="1" Text="Language" Style="{StaticResource Label}" VerticalAlignment="Center" Margin="0,6,0,0" />
+                            <ComboBox Grid.Row="1" Grid.Column="1" ItemsSource="{Binding SpeechLanguageChoices}" SelectedItem="{Binding SelectedSpeechLanguage}" Width="200" HorizontalAlignment="Left" Margin="0,6,0,0"
+                                      ToolTip="Pick your group's language if automatic detection gets it wrong (common for short clips)." />
+                        </Grid>
+                        <ProgressBar Height="6" Margin="20,8,0,0" Maximum="100" Value="{Binding TranscriptionProgress, Mode=OneWay}"
+                                     Visibility="{Binding TranscriptionDownloading, Converter={StaticResource BoolToVisibility}}" />
+                        <TextBlock Text="{Binding TranscriptionStatus}" TextWrapping="Wrap" Margin="20,6,0,0">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="Foreground" Value="#555" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding TranscriptionProblem}" Value="True">
+                                            <Setter Property="Foreground" Value="#B3261E" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
+                        <StackPanel Orientation="Horizontal" Margin="20,8,0,0" IsEnabled="{Binding TranscriptionEnabled}">
+                            <Button Content="Recognise all clips again" Command="{Binding RetranscribeAllCommand}"
+                                    ToolTip="Use after changing the model or language." />
+                            <Button Content="Download model again" Command="{Binding RedownloadSpeechModelCommand}" />
+                        </StackPanel>
 
                         <TextBlock Text="Updates" Style="{StaticResource SectionHeader}" />
                         <TextBlock Text="{Binding VersionText}" FontWeight="SemiBold" />

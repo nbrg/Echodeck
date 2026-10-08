@@ -45,6 +45,18 @@ public sealed partial class ClipItemViewModel : ObservableObject
     [ObservableProperty] private string _hotkeyStatus = "";
     [ObservableProperty] private bool _hotkeyHasProblem;
 
+    /// <summary>What's said in the clip; null while not transcribed.</summary>
+    [ObservableProperty] private string? _transcript;
+
+    public string TranscriptText => Transcript switch
+    {
+        null => "",
+        "" => "(no speech recognised)",
+        var t => $"“{t}”",
+    };
+
+    partial void OnTranscriptChanged(string? value) => OnPropertyChanged(nameof(TranscriptText));
+
     public string DurationText => $"{DurationSeconds:0.0} s";
 
     /// <summary>Updates from the library without writing back.</summary>
@@ -58,12 +70,16 @@ public sealed partial class ClipItemViewModel : ObservableObject
         Hotkey = clip.Hotkey;
         DurationSeconds = clip.DurationSeconds;
         CreatedAt = clip.CreatedAt;
+        Transcript = clip.Transcript;
         _applying = false;
         OnPropertyChanged(nameof(DurationText));
     }
 
-    partial void OnCategoryChanged(string? value) =>
-        Push(c => c.Category = string.IsNullOrWhiteSpace(value) ? null : value.Trim());
+    partial void OnCategoryChanged(string? value)
+    {
+        // Through the library, so typing "bob" reuses an existing "Bob" and a new name becomes a category.
+        if (!_applying) _soundboard.Library.SetCategory(Id, value);
+    }
 
     partial void OnIsFavoriteChanged(bool value) => Push(c => c.IsFavorite = value);
     partial void OnVolumePercentChanged(double value) => Push(c => c.Volume = Math.Clamp(value / 100, 0, 2));
@@ -74,6 +90,9 @@ public sealed partial class ClipItemViewModel : ObservableObject
         if (!_applying) _soundboard.Update(Id, change);
     }
 }
+
+/// <summary>An entry in the right-click "Category" menu.</summary>
+public sealed record CategoryMenuItem(string Header, string? Category, bool IsNew = false, bool IsClear = false);
 
 /// <summary>"Soundboard" tab: the permanent clip library with search, categories, sort and per-clip settings.</summary>
 public sealed partial class SoundboardViewModel : ObservableObject, IDisposable
@@ -123,6 +142,9 @@ public sealed partial class SoundboardViewModel : ObservableObject, IDisposable
     public ICollectionView View { get; }
     public ObservableCollection<string> Filters { get; } = new();
     public ObservableCollection<string> Categories { get; } = new();
+
+    /// <summary>Right-click → Category: "New category…", "No category", then every category.</summary>
+    public ObservableCollection<CategoryMenuItem> CategoryMenu { get; } = new();
     public IReadOnlyList<string> SortOptions { get; }
 
     /// <summary>Raised when an operation wants to report something in the status bar.</summary>
@@ -136,7 +158,14 @@ public sealed partial class SoundboardViewModel : ObservableObject, IDisposable
     [ObservableProperty] private string _countText = "";
 
     partial void OnSearchTextChanged(string value) => Refresh();
-    partial void OnSelectedFilterChanged(string value) => Refresh();
+    partial void OnSelectedFilterChanged(string value)
+    {
+        OnPropertyChanged(nameof(IsCategoryFilter));
+        Refresh();
+    }
+
+    /// <summary>The filter is a category (so it can be renamed or deleted).</summary>
+    public bool IsCategoryFilter => SelectedFilter != AllFilter && SelectedFilter != FavoritesFilter;
     partial void OnSelectedSortChanged(string value) { ApplySort(); Refresh(); }
 
     // ------------------------------------------------------------------ commands
@@ -260,6 +289,82 @@ public sealed partial class SoundboardViewModel : ObservableObject, IDisposable
         if (clip is not null) clip.IsFavorite = !clip.IsFavorite;
     }
 
+    // ------------------------------------------------------------------ categories
+
+    /// <summary>Clips a command applies to: the right-clicked/selected rows, or the current clip.</summary>
+    private IReadOnlyList<ClipItemViewModel> Targets() =>
+        SelectedClips.Count > 0 ? SelectedClips : SelectedClip is null ? Array.Empty<ClipItemViewModel>() : new[] { SelectedClip };
+
+    /// <summary>Creates a category (e.g. a friend's name). Clips selected right now go into it.</summary>
+    [RelayCommand]
+    private void NewCategory()
+    {
+        string? name = _dialogs.Prompt("New category", "Name (for example a friend's name):", "");
+        if (ClipLibraryStore.CleanCategory(name) is null) return;
+        Guarded(() =>
+        {
+            string created = _soundboard.Library.AddCategory(name!);
+            Notify($"Created category \"{created}\".");
+        }, "New category");
+    }
+
+    /// <summary>Right-click → Category → …: moves the selected clips into a category (or a new one).</summary>
+    [RelayCommand]
+    private void AssignCategory(CategoryMenuItem? item)
+    {
+        if (item is null) return;
+        var targets = Targets();
+        if (targets.Count == 0) return;
+        string? category = item.Category;
+        if (item.IsNew)
+        {
+            category = _dialogs.Prompt("New category", "Name (for example a friend's name):", "");
+            if (ClipLibraryStore.CleanCategory(category) is null) return;
+        }
+        Guarded(() =>
+        {
+            string? applied = null;
+            foreach (var clip in targets.ToList())
+                applied = _soundboard.Library.SetCategory(clip.Id, item.IsClear ? null : category)?.Category;
+            string what = targets.Count == 1 ? $"\"{targets[0].Name}\"" : $"{targets.Count} clips";
+            Notify(applied is null ? $"Removed the category from {what}." : $"Moved {what} to \"{applied}\".");
+        }, "Set category");
+    }
+
+    [RelayCommand]
+    private void RenameCategory()
+    {
+        if (!IsCategoryFilter) return;
+        string old = SelectedFilter;
+        string? name = _dialogs.Prompt("Rename category", $"New name for \"{old}\":", old);
+        if (ClipLibraryStore.CleanCategory(name) is null || name == old) return;
+        Guarded(() =>
+        {
+            string renamed = _soundboard.Library.RenameCategory(old, name!);
+            // After the library change has refreshed the filter list (queued at normal priority).
+            _dispatcher.BeginInvoke(() => SelectedFilter = renamed, DispatcherPriority.Background);
+            Notify($"Renamed category \"{old}\" to \"{renamed}\".");
+        }, "Rename category");
+    }
+
+    [RelayCommand]
+    private void DeleteCategory()
+    {
+        if (!IsCategoryFilter) return;
+        string name = SelectedFilter;
+        int count = Items.Count(i => string.Equals(i.Category, name, StringComparison.CurrentCultureIgnoreCase));
+        string question = count == 0
+            ? $"Delete the category \"{name}\"?"
+            : $"Delete the category \"{name}\"? Its {count} clip(s) are kept, just without a category.";
+        if (!_dialogs.Confirm(question, "Delete category")) return;
+        Guarded(() =>
+        {
+            _soundboard.Library.DeleteCategory(name);
+            SelectedFilter = AllFilter;
+            Notify($"Deleted category \"{name}\".");
+        }, "Delete category");
+    }
+
     [RelayCommand]
     private void ClearHotkey(ClipItemViewModel? clip)
     {
@@ -323,6 +428,13 @@ public sealed partial class SoundboardViewModel : ObservableObject, IDisposable
         var categories = _soundboard.Library.Categories;
         Replace(Categories, categories);
         Replace(Filters, new[] { AllFilter, FavoritesFilter }.Concat(categories));
+        var menu = new[] { new CategoryMenuItem("＋ New category…", null, IsNew: true), new CategoryMenuItem("No category", null, IsClear: true) }
+            .Concat(categories.Select(c => new CategoryMenuItem(c, c))).ToList();
+        if (!CategoryMenu.SequenceEqual(menu))
+        {
+            CategoryMenu.Clear();
+            foreach (var m in menu) CategoryMenu.Add(m);
+        }
         if (!Filters.Contains(SelectedFilter)) SelectedFilter = AllFilter;
 
         OnRegistrationsChanged(null, EventArgs.Empty);
@@ -368,6 +480,7 @@ public sealed partial class SoundboardViewModel : ObservableObject, IDisposable
         string q = SearchText.Trim();
         return c.Name.Contains(q, StringComparison.CurrentCultureIgnoreCase)
                || (c.Category?.Contains(q, StringComparison.CurrentCultureIgnoreCase) ?? false)
+               || (c.Transcript?.Contains(q, StringComparison.CurrentCultureIgnoreCase) ?? false)
                || (c.Hotkey?.Contains(q, StringComparison.CurrentCultureIgnoreCase) ?? false);
     }
 

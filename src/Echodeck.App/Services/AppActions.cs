@@ -77,6 +77,7 @@ public sealed class AppActions
                 case HotkeyActions.SaveLast: await SaveLastAsync(); break;
                 case HotkeyActions.OpenEditor: await OpenReplayEditorFromHotkeyAsync(); break;
                 case HotkeyActions.StopClips: StopClips(); break;
+                case HotkeyActions.PlayLast: await PlayLastSavedAsync(); break;
                 case HotkeyActions.ToggleMute: ToggleMute(); break;
                 case HotkeyActions.ShowWindow: ShowWindow(); break;
                 default: _logger.LogWarning("Unknown action {Action}", actionId); break;
@@ -222,6 +223,14 @@ public sealed class AppActions
             _logger.LogError(ex, "Playing clip {Clip} failed", clipId);
             return Report(ActionOutcome.Error($"Couldn't play \"{entry.Name}\": {ex.Message}"));
         }
+    }
+
+    /// <summary>Plays the newest clip (usually the replay you just saved) into Discord.</summary>
+    public async Task<ActionOutcome> PlayLastSavedAsync()
+    {
+        var newest = _soundboard.Library.Clips.MaxBy(c => c.CreatedAt);
+        if (newest is null) return Report(ActionOutcome.Error("No clips yet — save one first."));
+        return await PlayClipAsync(newest.Id);
     }
 
     /// <summary>

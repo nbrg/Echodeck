@@ -5,6 +5,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Echodeck.App.Services;
 using Echodeck.Audio.Diagnostics;
+using Echodeck.Audio.Transcription;
 using Echodeck.Core.Infrastructure;
 using Echodeck.Core.Settings;
 using Microsoft.Extensions.Logging;
@@ -19,10 +20,14 @@ public sealed partial class SettingsPageViewModel : ObservableObject
     private readonly AppPaths _paths;
     private readonly ILogger<SettingsPageViewModel> _logger;
     private readonly UpdateService _updates;
+    private readonly TranscriptionService _transcription;
     private bool _loading;
 
-    public SettingsPageViewModel(SettingsService settings, DiagnosticsReport diagnostics, AppPaths paths, UpdateService updates, ILogger<SettingsPageViewModel> logger)
+    public SettingsPageViewModel(SettingsService settings, DiagnosticsReport diagnostics, AppPaths paths, UpdateService updates,
+        TranscriptionService transcription, ILogger<SettingsPageViewModel> logger)
     {
+        _transcription = transcription;
+        _transcription.StatusChanged += (_, st) => Application.Current?.Dispatcher.BeginInvoke(() => ApplyTranscriptionStatus(st));
         _updates = updates;
         _updates.Changed += (_, _) => RefreshUpdateState();
         RefreshUpdateState();
@@ -40,6 +45,10 @@ public sealed partial class SettingsPageViewModel : ObservableObject
         CloseToTray = s.CloseToTray;
         StartMinimized = s.StartMinimized;
         try { StartWithWindows = StartupRegistration.IsEnabled(); } catch { StartWithWindows = false; }
+        TranscriptionEnabled = s.TranscriptionEnabled;
+        SelectedSpeechModel = SpeechModelChoices.FirstOrDefault(c => c.Value == s.TranscriptionModel) ?? SpeechModelChoices[0];
+        SelectedSpeechLanguage = SpeechLanguageChoices.FirstOrDefault(c => c.Value == s.TranscriptionLanguage) ?? SpeechLanguageChoices[0];
+        ApplyTranscriptionStatus(transcription.Status);
         _loading = false;
 
         settings.Changed += (_, changed) =>
@@ -66,6 +75,47 @@ public sealed partial class SettingsPageViewModel : ObservableObject
     [ObservableProperty] private string _message = "";
     [ObservableProperty] private string _updateStatus = "";
     [ObservableProperty] private bool _updateReady;
+
+    // ---- clip search (speech recognition)
+    public IReadOnlyList<Choice<string>> SpeechModelChoices { get; } =
+        SpeechModels.All.Select(m => new Choice<string>(m.Id, m.Label)).ToArray();
+
+    public IReadOnlyList<Choice<string>> SpeechLanguageChoices { get; } = new (string Code, string Name)[]
+    {
+        ("auto", "Detect automatically"), ("en", "English"), ("fi", "Finnish"), ("sv", "Swedish"), ("no", "Norwegian"),
+        ("da", "Danish"), ("de", "German"), ("nl", "Dutch"), ("fr", "French"), ("es", "Spanish"), ("it", "Italian"),
+        ("pt", "Portuguese"), ("pl", "Polish"), ("ru", "Russian"), ("uk", "Ukrainian"), ("tr", "Turkish"),
+    }.Select(l => new Choice<string>(l.Code, l.Name)).ToArray();
+
+    [ObservableProperty] private bool _transcriptionEnabled;
+    [ObservableProperty] private Choice<string>? _selectedSpeechModel;
+    [ObservableProperty] private Choice<string>? _selectedSpeechLanguage;
+    [ObservableProperty] private string _transcriptionStatus = "";
+    [ObservableProperty] private bool _transcriptionProblem;
+    [ObservableProperty] private double _transcriptionProgress;
+    [ObservableProperty] private bool _transcriptionDownloading;
+
+    private void ApplyTranscriptionStatus(Echodeck.Audio.Transcription.TranscriptionStatus st)
+    {
+        TranscriptionStatus = st.Text;
+        TranscriptionProblem = st.Problem;
+        TranscriptionDownloading = st.Progress is not null;
+        TranscriptionProgress = (st.Progress ?? 0) * 100;
+    }
+
+    partial void OnTranscriptionEnabledChanged(bool value) { if (!_loading) _settings.Update(s => s.TranscriptionEnabled = value); }
+    partial void OnSelectedSpeechModelChanged(Choice<string>? value) { if (!_loading && value is not null) _settings.Update(s => s.TranscriptionModel = value.Value); }
+    partial void OnSelectedSpeechLanguageChanged(Choice<string>? value) { if (!_loading && value is not null) _settings.Update(s => s.TranscriptionLanguage = value.Value); }
+
+    [RelayCommand]
+    private void RetranscribeAll()
+    {
+        _transcription.RetranscribeAll();
+        Message = "All clips will be recognised again in the background.";
+    }
+
+    [RelayCommand]
+    private void RedownloadSpeechModel() => _transcription.Redownload();
 
     public string VersionText => $"Echodeck {_updates.CurrentVersion}" + (_updates.IsInstalled ? "" : " (not installed — portable copy)");
 

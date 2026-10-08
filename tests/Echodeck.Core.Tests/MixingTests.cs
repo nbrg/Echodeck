@@ -287,3 +287,38 @@ public class AudioClipTests
         Assert.Equal(0f, peaks[5]);
     }
 }
+
+public class ClipVoiceDelayTests
+{
+    private static readonly AudioFormat Fmt = new(48_000, 2);
+
+    [Fact]
+    public void Start_delay_plays_silence_first_then_the_whole_clip()
+    {
+        var clip = new AudioClip(Enumerable.Repeat(0.5f, Fmt.SamplesFor(TimeSpan.FromMilliseconds(100))).ToArray(), Fmt, DateTimeOffset.Now);
+        var voice = new ClipVoice(clip, "c", 1f, TimeSpan.FromMilliseconds(150));
+
+        var first = new float[Fmt.SamplesFor(TimeSpan.FromMilliseconds(150))];
+        voice.MixInto(first);
+        Assert.All(first, v => Assert.Equal(0f, v));
+        Assert.False(voice.IsFinished);
+        Assert.Equal(TimeSpan.Zero, voice.Position);
+
+        var rest = new float[Fmt.SamplesFor(TimeSpan.FromMilliseconds(200))];
+        voice.MixInto(rest);
+        Assert.Equal(0.5f, rest[Fmt.SamplesFor(TimeSpan.FromMilliseconds(50))], 3); // middle of the clip
+        Assert.True(voice.IsFinished);
+    }
+
+    [Fact]
+    public void Stop_during_the_delay_ends_without_sound()
+    {
+        var clip = new AudioClip(Enumerable.Repeat(0.5f, 9600).ToArray(), Fmt, DateTimeOffset.Now);
+        var voice = new ClipVoice(clip, "c", 1f, TimeSpan.FromMilliseconds(150));
+        voice.Stop(TimeSpan.FromMilliseconds(30));
+        var block = new float[9600];
+        voice.MixInto(block);
+        Assert.True(voice.IsFinished);
+        Assert.All(block, v => Assert.Equal(0f, v));
+    }
+}
