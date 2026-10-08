@@ -50,6 +50,10 @@ public sealed class HotkeyCoordinator : IDisposable
             if (HotkeyGesture.ParseOrNull(clip.Hotkey) is { } g)
                 list.Add(new HotkeyBinding(HotkeyActions.ForClip(clip.Id), $"Clip: {clip.Name}", g));
         }
+        // Echodeck presses its push-to-talk key itself while clips play: a hotkey on that same key
+        // would fire every time a clip starts.
+        if (settings.PushToTalkEnabled)
+            list.RemoveAll(b => string.Equals(b.Gesture.ToString(), settings.PushToTalkKey, StringComparison.OrdinalIgnoreCase));
         return list;
     }
 

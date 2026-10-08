@@ -33,6 +33,11 @@ public sealed class RemoteServerTests : IAsyncLifetime
         public Task<RemoteResult> SaveTrimAsync(Guid id, RangeRequest r) => Ok($"trim:{r.Start}-{r.End}:{r.Name}:{r.AsCopy}");
         public Task<RemoteResult> RenameAsync(Guid id, string name) => Ok("rename:" + name);
         public Task<RemoteResult> DeleteAsync(Guid id) => Ok("delete");
+        public IReadOnlyList<string> GetCategories() => new[] { "Bob", "CS2" };
+        public Task<RemoteResult> SetFavoriteAsync(Guid id, bool favorite) => Ok("fav:" + favorite);
+        public Task<RemoteResult> SetCategoryAsync(Guid id, string? category) => Ok("cat:" + (category ?? "<none>"));
+        public Task<RemoteResult> AddCategoryAsync(string name) => Ok("newcat:" + name);
+        public Task<RemoteResult> PlayLastAsync() => Ok("play-last");
     }
 
     public async Task InitializeAsync()
@@ -114,6 +119,27 @@ public sealed class RemoteServerTests : IAsyncLifetime
         Assert.True((await _http.SendAsync(Json($"/api/clips/{id}/rename", new { name = "New" }))).IsSuccessStatusCode);
         Assert.True((await _http.SendAsync(Authed(HttpMethod.Post, $"/api/clips/{id}/delete"))).IsSuccessStatusCode);
         Assert.Equal(new[] { "trim:0.5-1.25:Short:True", "pc:0.1-0.2", "discord:0.1-0.2", "rename:New", "delete" }, _backend.Calls);
+    }
+
+    [Fact]
+    public async Task LibraryEndpoints_Work()
+    {
+        var cats = await (await _http.SendAsync(Authed(HttpMethod.Get, "/api/categories"))).Content.ReadFromJsonAsync<List<string>>();
+        Assert.Equal(new[] { "Bob", "CS2" }, cats);
+
+        HttpRequestMessage Json(string path, object body)
+        {
+            var req = Authed(HttpMethod.Post, path);
+            req.Content = JsonContent.Create(body);
+            return req;
+        }
+        var id = _backend.ClipId;
+        Assert.True((await _http.SendAsync(Json($"/api/clips/{id}/favorite", new { favorite = true }))).IsSuccessStatusCode);
+        Assert.True((await _http.SendAsync(Json($"/api/clips/{id}/category", new { category = "Bob" }))).IsSuccessStatusCode);
+        Assert.True((await _http.SendAsync(Json($"/api/clips/{id}/category", new { category = (string?)null }))).IsSuccessStatusCode);
+        Assert.True((await _http.SendAsync(Json("/api/categories", new { name = "Alice" }))).IsSuccessStatusCode);
+        Assert.True((await _http.SendAsync(Authed(HttpMethod.Post, "/api/play-last"))).IsSuccessStatusCode);
+        Assert.Equal(new[] { "fav:True", "cat:Bob", "cat:<none>", "newcat:Alice", "play-last" }, _backend.Calls);
     }
 
     public async Task DisposeAsync()

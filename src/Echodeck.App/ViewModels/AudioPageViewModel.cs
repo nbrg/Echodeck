@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using System.Windows.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Echodeck.App.Services;
 using Echodeck.Audio.Devices;
 using Echodeck.Core.Settings;
 using Echodeck.Core.Setup;
@@ -19,13 +20,15 @@ public sealed partial class AudioPageViewModel : ObservableObject, IDisposable
 
     private readonly AudioDeviceService _devices;
     private readonly SettingsService _settings;
+    private readonly PushToTalkService _ptt;
     private readonly Dispatcher _dispatcher;
     private bool _loading;
 
-    public AudioPageViewModel(AudioDeviceService devices, SettingsService settings)
+    public AudioPageViewModel(AudioDeviceService devices, SettingsService settings, PushToTalkService ptt)
     {
         _devices = devices;
         _settings = settings;
+        _ptt = ptt;
         _dispatcher = Dispatcher.CurrentDispatcher;
 
         CaptureModes = new[]
@@ -76,6 +79,55 @@ public sealed partial class AudioPageViewModel : ObservableObject, IDisposable
     [ObservableProperty] private bool _hearClipsInHeadphones;
     [ObservableProperty] private double _headphoneClipVolume; // percent
     [ObservableProperty] private bool _includeOwnAudioInReplays;
+
+    // ---- push to talk
+    public IReadOnlyList<string> PushToTalkKeyChoices => PushToTalkKeys.All;
+    [ObservableProperty] private bool _pushToTalkEnabled;
+    [ObservableProperty] private string _pushToTalkKey = PushToTalkKeys.Default;
+    [ObservableProperty] private double _pushToTalkLeadMs;
+    [ObservableProperty] private string _pushToTalkStatus = "";
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(TeachDiscordCommand))]
+    private bool _teaching;
+
+    /// <summary>
+    /// Discord can only learn a keybind by seeing the key pressed, and no keyboard has F13–F24:
+    /// counts down (time to click "Record Keybind" in Discord), then presses the key once.
+    /// </summary>
+    [RelayCommand(CanExecute = nameof(CanTeach))]
+    private async Task TeachDiscordAsync()
+    {
+        Teaching = true;
+        try
+        {
+            string key = PushToTalkKey;
+            for (int i = 5; i > 0; i--)
+            {
+                PushToTalkStatus = $"In Discord, click \"Record Keybind\" now. Echodeck presses {key} in {i}…";
+                await Task.Delay(1000);
+            }
+            await _ptt.TestPressAsync(TimeSpan.Zero, TimeSpan.FromMilliseconds(400));
+            PushToTalkStatus = $"Pressed {key}. Discord should now show \"{key}\" for that keybind — click outside it to stop recording.";
+            if (PushToTalkService.IsDiscordElevated() == true)
+                PushToTalkStatus = "Discord is running as administrator, so Windows blocks key presses from Echodeck. Restart Discord normally (not \"Run as administrator\").";
+        }
+        finally
+        {
+            Teaching = false;
+        }
+    }
+
+    private bool CanTeach() => !Teaching;
+
+    partial void OnPushToTalkEnabledChanged(bool value)
+    {
+        Save(s => s.PushToTalkEnabled = value);
+        if (!_loading && value && PushToTalkService.IsDiscordElevated() == true)
+            PushToTalkStatus = "Discord is running as administrator, so Windows blocks key presses from Echodeck. Restart Discord normally (not \"Run as administrator\").";
+    }
+
+    partial void OnPushToTalkKeyChanged(string value) { if (PushToTalkKeys.IsValid(value)) Save(s => s.PushToTalkKey = value); }
+    partial void OnPushToTalkLeadMsChanged(double value) => Save(s => s.PushToTalkLeadMs = (int)Math.Round(value));
 
     public bool IsLoopbackDeviceEnabled => SelectedCaptureMode?.Value == DiscordCaptureMode.SelectedDevice;
 
@@ -140,6 +192,9 @@ public sealed partial class AudioPageViewModel : ObservableObject, IDisposable
         HearClipsInHeadphones = s.HearClipsInHeadphones;
         HeadphoneClipVolume = Math.Round(s.HeadphoneClipGain * 100);
         IncludeOwnAudioInReplays = s.IncludeOwnAudioInReplays;
+        PushToTalkEnabled = s.PushToTalkEnabled;
+        PushToTalkKey = s.PushToTalkKey;
+        PushToTalkLeadMs = s.PushToTalkLeadMs;
         _loading = false;
     }
 

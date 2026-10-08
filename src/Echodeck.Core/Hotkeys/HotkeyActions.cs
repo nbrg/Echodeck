@@ -11,6 +11,7 @@ public static class HotkeyActions
     public const string SaveLast = "save:last";
     public const string OpenEditor = "editor:open";
     public const string StopClips = "clips:stop";
+    public const string PlayLast = "clips:play-last";
     public const string ToggleMute = "mic:toggle-mute";
     public const string ShowWindow = "app:show";
 
@@ -21,6 +22,7 @@ public static class HotkeyActions
     {
         new HotkeyActionInfo(SaveLast, "Save last N s as a clip", "F8"),
         new HotkeyActionInfo(OpenEditor, "Open trim editor on the whole replay buffer", "F9"),
+        new HotkeyActionInfo(PlayLast, "Play the newest clip into Discord", null),
         new HotkeyActionInfo(StopClips, "Stop playing clips", null),
         new HotkeyActionInfo(ToggleMute, "Mute / unmute microphone", null),
         new HotkeyActionInfo(ShowWindow, "Show Echodeck window", null),

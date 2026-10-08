@@ -25,6 +25,9 @@ public sealed class SoundboardClip
     /// <summary>Global shortcut that plays this clip into Discord, e.g. "Ctrl+NumPad1".</summary>
     public string? Hotkey { get; set; }
 
+    /// <summary>What's said in the clip (local speech recognition). Null = not transcribed yet; "" = no speech.</summary>
+    public string? Transcript { get; set; }
+
     public SoundboardClip Clone() => (SoundboardClip)MemberwiseClone();
 }
 
@@ -45,6 +48,7 @@ public sealed class ClipLibraryStore
     private readonly ILogger<ClipLibraryStore> _logger;
     private readonly object _lock = new();
     private List<SoundboardClip> _clips = new();
+    private List<string> _categories = new();
     private long _version;
 
     /// <param name="readDuration">Reads a WAV file's duration (null if unreadable). Injected so this stays platform-neutral.</param>
@@ -73,15 +77,113 @@ public sealed class ClipLibraryStore
 
     public string FullPath(SoundboardClip clip) => Path.Combine(_paths.ClipsDirectory, clip.FileName);
 
+    /// <summary>
+    /// Every category: the ones you created (kept even while empty, e.g. one per friend) plus any
+    /// used by a clip. Sorted, case-insensitively unique.
+    /// </summary>
     public IReadOnlyList<string> Categories
     {
         get
         {
             lock (_lock)
-                return _clips.Select(c => c.Category).Where(c => !string.IsNullOrWhiteSpace(c)).Select(c => c!)
+                return _categories.Concat(_clips.Select(c => c.Category).Where(c => !string.IsNullOrWhiteSpace(c)).Select(c => c!))
                     .Distinct(StringComparer.CurrentCultureIgnoreCase).OrderBy(c => c, StringComparer.CurrentCultureIgnoreCase).ToList();
         }
     }
+
+    /// <summary>
+    /// Creates a category (no-op if it exists, in any letter case). Returns the stored spelling,
+    /// so "bob" after "Bob" gives "Bob" and clips don't end up split across two spellings.
+    /// </summary>
+    public string AddCategory(string name)
+    {
+        string clean = CleanCategory(name) ?? throw new ArgumentException("A category needs a name.", nameof(name));
+        string? existing;
+        lock (_lock)
+        {
+            existing = FindCategoryUnlocked(clean);
+            if (existing is not null) return existing;
+            _categories.Add(clean);
+            SaveCategoriesUnlocked();
+            _version++;
+        }
+        Changed?.Invoke(this, EventArgs.Empty);
+        return clean;
+    }
+
+    /// <summary>Renames a category on every clip. Renaming onto an existing category merges them.</summary>
+    public string RenameCategory(string oldName, string newName)
+    {
+        string clean = CleanCategory(newName) ?? throw new ArgumentException("A category needs a name.", nameof(newName));
+        string result;
+        lock (_lock)
+        {
+            string? target = FindCategoryUnlocked(clean);
+            result = target is not null && !Same(target, oldName) ? target : clean;
+            _categories.RemoveAll(c => Same(c, oldName) || Same(c, result));
+            _categories.Add(result);
+            foreach (var clip in _clips.Where(c => Same(c.Category, oldName))) clip.Category = result;
+            SaveUnlocked();
+            SaveCategoriesUnlocked();
+            _version++;
+        }
+        Changed?.Invoke(this, EventArgs.Empty);
+        return result;
+    }
+
+    /// <summary>Removes a category. Its clips are kept, just without a category.</summary>
+    public void DeleteCategory(string name)
+    {
+        lock (_lock)
+        {
+            _categories.RemoveAll(c => Same(c, name));
+            foreach (var clip in _clips.Where(c => Same(c.Category, name))) clip.Category = null;
+            SaveUnlocked();
+            SaveCategoriesUnlocked();
+            _version++;
+        }
+        Changed?.Invoke(this, EventArgs.Empty);
+    }
+
+    /// <summary>
+    /// Sets a clip's category, creating it if new and reusing an existing spelling. Null or blank
+    /// clears it. Returns the updated clip, or null if it no longer exists.
+    /// </summary>
+    public SoundboardClip? SetCategory(Guid id, string? category)
+    {
+        string? clean = CleanCategory(category);
+        SoundboardClip? updated = null;
+        lock (_lock)
+        {
+            var clip = _clips.FirstOrDefault(c => c.Id == id);
+            if (clip is null) return null;
+            if (clean is not null)
+            {
+                clean = FindCategoryUnlocked(clean) ?? clean;
+                if (!_categories.Any(c => Same(c, clean))) { _categories.Add(clean); SaveCategoriesUnlocked(); }
+            }
+            clip.Category = clean;
+            updated = clip.Clone();
+            SaveUnlocked();
+            _version++;
+        }
+        Changed?.Invoke(this, EventArgs.Empty);
+        return updated;
+    }
+
+    /// <summary>Trims a category name and limits its length; null for blank.</summary>
+    public static string? CleanCategory(string? name)
+    {
+        if (string.IsNullOrWhiteSpace(name)) return null;
+        string trimmed = string.Join(' ', name.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
+        return trimmed.Length > 40 ? trimmed[..40].TrimEnd() : trimmed;
+    }
+
+    private string? FindCategoryUnlocked(string name) =>
+        _categories.FirstOrDefault(c => Same(c, name)) ?? _clips.Select(c => c.Category).FirstOrDefault(c => Same(c, name));
+
+    private static bool Same(string? a, string? b) =>
+        a is not null && b is not null && string.Equals(a, b, StringComparison.CurrentCultureIgnoreCase);
 
     /// <summary>Loads clips.json and reconciles it with the files on disk.</summary>
     public void Load()
@@ -89,6 +191,7 @@ public sealed class ClipLibraryStore
         lock (_lock)
         {
             _clips = ReadIndex();
+            _categories = ReadCategories();
             bool changed = Reconcile();
             if (changed) SaveUnlocked();
             _version++;
@@ -139,6 +242,39 @@ public sealed class ClipLibraryStore
             try { File.Copy(path, path + ".bad", overwrite: true); } catch { /* ignore */ }
         }
         return new();
+    }
+
+    private List<string> ReadCategories()
+    {
+        try
+        {
+            if (File.Exists(_paths.CategoriesFile))
+            {
+                var list = JsonSerializer.Deserialize<List<string>>(File.ReadAllText(_paths.CategoriesFile), JsonOptions) ?? new();
+                return list.Select(CleanCategory).Where(c => c is not null).Select(c => c!)
+                    .Distinct(StringComparer.CurrentCultureIgnoreCase).ToList();
+            }
+        }
+        catch (Exception ex) when (ex is JsonException or IOException or UnauthorizedAccessException)
+        {
+            _logger.LogWarning(ex, "categories.json unreadable; categories used by clips are kept");
+        }
+        return new();
+    }
+
+    private void SaveCategoriesUnlocked()
+    {
+        try
+        {
+            Directory.CreateDirectory(_paths.Root);
+            string temp = _paths.CategoriesFile + ".tmp";
+            File.WriteAllText(temp, JsonSerializer.Serialize(_categories, JsonOptions));
+            File.Move(temp, _paths.CategoriesFile, overwrite: true);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            _logger.LogError(ex, "Failed to save categories.json");
+        }
     }
 
     private bool Reconcile()

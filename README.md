@@ -106,7 +106,22 @@ dotnet add src/Echodeck.App   package Microsoft.Extensions.Logging.Debug --versi
 4. In Discord → User Settings → Voice & Video:
    * **Input Device:** `CABLE Output (VB-Audio Virtual Cable)`.
    * **Output Device:** your headset.
-   * Use **Voice Activity**. With Push to Talk, friends only hear clips while you hold the key.
+   * **Voice Activity** works out of the box. Using **Push to Talk**? See below.
+
+### Push to Talk users
+
+Echodeck can hold a push-to-talk key for you while a clip plays, so friends hear it without you
+pressing anything. Your own push-to-talk key keeps working as before.
+
+1. Echodeck → **Audio** tab → tick **I use Push to Talk in Discord**. The key is **F13** (no
+   keyboard has it, so no game reacts to it).
+2. Discord → User Settings → **Keybinds** → **Add a Keybind** → Action **Push to Talk (Normal)** →
+   **Record Keybind**.
+3. Within 5 seconds, click **Press it for Discord** in Echodeck. Discord now shows F13 for that
+   keybind.
+
+If friends miss the first word of a clip, raise **Head start before clips** on the Audio tab.
+If Discord runs as administrator, Windows blocks the key press: start Discord normally.
 
 Echodeck now carries your voice to Discord, so keep it running while you're in a call. If anything
 is routed wrong, an orange or red banner at the top of the window says what's wrong and how to fix
@@ -139,11 +154,13 @@ You get:
 
 * **💾 Save last 5 s** and **💾 Save last 30 s**. These save from the replay buffer, including your
   side if that's on, and open the trim editor straight away.
-* One tile per clip, with **🕒 Recent**, **★ Favourites** and category filters. Tap a tile to play
-  it into Discord.
+* **▶ Last** plays the newest clip into Discord.
+* One tile per clip, with **🕒 Recent**, **★ Favourites**, one filter per category (e.g. per friend)
+  and **No category**. Tap a tile to play it into Discord. The search box finds clips by name,
+  category or what's said in them.
 * A **✂** on each tile to trim the clip on the phone. Drag the handles, then preview on your
   **PC headset** or **this phone**, play the selection into **Discord**, and save, save a copy,
-  rename or delete.
+  rename or delete. Set ☆ favourite and **Who said it?** (the category, or **＋ New**) right there.
 * Stop and Mute.
 
 So you can save and trim mid-game without alt-tabbing. It only works on your home network, and only
@@ -154,15 +171,24 @@ for devices that scanned the QR code, which contains a secret pairing code.
 | Tab | What's there |
 |---|---|
 | **Replay** | 💾 Save last N s · ✂ Edit whole buffer · recent clips |
-| **Soundboard** | Every clip: search, category filter, sort. Per clip: ▶ Discord, ▶ Preview (headphones only), ★ favourite, category, volume, hotkey, trim/edit, rename (F2), duplicate, delete (Del), and 📥 Import WAV/MP3 |
+| **Soundboard** | Every clip: search (names, categories, what's said), category filter with ＋ new / ✎ rename / 🗑 delete category, sort. Right-click → **Category** moves one or several clips. Per clip: ▶ Discord, ▶ Preview (headphones only), ★ favourite, category, volume, hotkey, trim/edit, rename (F2), duplicate, delete (Del), and 📥 Import WAV/MP3 |
 | **Audio** | Devices, volumes, mute, ducking, clip overlap, "include my side in replays", "hear clips in my headphones" |
 | **Hotkeys** | Global shortcuts and the status of every hotkey |
 | **Phone** | Remote on/off, QR code, pairing |
 | **Setup** | One-time setup steps and a live routing check |
-| **Settings** | Buffer length, pause recording, tray / start minimised / start with Windows, diagnostics |
+| **Settings** | Buffer length, pause recording, clip search (speech recognition), tray / start minimised / start with Windows, updates, diagnostics |
 
 Editor keys: **Space** preview · **Enter** play to Discord · **Ctrl+S** save · **Esc** cancel ·
 **←/→** move the start marker · **Shift+←/→** move the end marker (hold **Ctrl** for 100 ms steps).
+
+**Categories** are yours to make, for example one per friend. Create one with **＋** on the
+Soundboard tab (or **＋ New** on the phone), then right-click clips → **Category** (several at once
+with Ctrl/Shift-click). Empty categories are kept.
+
+**Search by what's said:** turn on **Settings → Clip search**. Echodeck downloads a speech model
+once (142 MB) and then recognises speech in every clip on your PC, offline and at low priority.
+After that, searching "stairs" on the PC or phone finds the clip where someone said it. Pick your
+group's language there if automatic detection guesses wrong.
 
 Saved replays are **tidied up automatically**: the silence before and after the talking is cut
 (a short pad is kept), and loudness is evened out (to −18 LUFS, peaks never above −1 dBFS), so a

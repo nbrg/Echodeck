@@ -6,6 +6,8 @@ namespace Echodeck.Core.Infrastructure;
 /// %AppData%\Echodeck\
 ///   settings.json
 ///   clips.json          (Phase 4: soundboard library index)
+///   categories.json     your categories (e.g. one per friend), including empty ones
+///   models\             speech-recognition model, downloaded when transcription is turned on
 ///   clips\              saved WAV clips
 ///   logs\               rolling diagnostic logs (size-capped)
 /// </code>
@@ -25,6 +27,8 @@ public sealed class AppPaths
     public string Root { get; }
     public string SettingsFile => Path.Combine(Root, "settings.json");
     public string ClipLibraryFile => Path.Combine(Root, "clips.json");
+    public string CategoriesFile => Path.Combine(Root, "categories.json");
+    public string ModelsDirectory => Path.Combine(Root, "models");
     public string ClipsDirectory => Path.Combine(Root, "clips");
     public string LogsDirectory => Path.Combine(Root, "logs");
 

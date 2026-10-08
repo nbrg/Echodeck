@@ -77,6 +77,17 @@
   .actions { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 10px; }
   .actions button { padding: 14px 6px; font-size: 15px; }
   .hint { color: var(--muted); font-size: 12px; text-align: center; margin-top: 10px; }
+  #search { width: 100%; font: inherit; font-size: 15px; color: var(--text); background: var(--panel); border: 0; border-radius: 10px;
+    padding: 10px 12px; margin-top: 10px; user-select: text; -webkit-user-select: text; }
+  .tile .said { color: var(--muted); font-size: 12px; font-style: italic; margin-top: 4px; display: -webkit-box;
+    -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .last { flex: none; padding: 16px 12px; }
+  .name-row { display: flex; gap: 8px; }
+  .name-row #name { flex: 1; }
+  #fav { flex: none; padding: 0 14px; font-size: 20px; color: var(--muted); }
+  #fav.on { color: #f0b232; }
+  #who .chip.add { color: var(--text); border: 1px dashed var(--muted); background: transparent; }
+  .said-full { color: var(--muted); font-size: 14px; font-style: italic; margin: 8px 2px 0; }
 </style>
 </head>
 <body>
@@ -93,12 +104,19 @@
 
 <section id="board">
   <div id="saves" class="row controls"></div>
+  <input id="search" type="search" autocomplete="off" placeholder="🔎 Search names and what was said">
   <div id="chips" class="chips"></div>
   <main id="main"><div class="empty">Loading clips…</div></main>
 </section>
 
 <section id="editor">
-  <input id="name" type="text" maxlength="120" autocomplete="off" placeholder="Clip name">
+  <div class="name-row">
+    <input id="name" type="text" maxlength="120" autocomplete="off" placeholder="Clip name">
+    <button id="fav" title="Favourite">☆</button>
+  </div>
+  <div id="saidFull" class="said-full"></div>
+  <div class="actions-label">Who said it? (category)</div>
+  <div id="who" class="chips"></div>
   <canvas id="wave"></canvas>
   <div id="seltext" class="sel-text"></div>
   <div class="nudge">
@@ -174,26 +192,35 @@
   }
 
   // ---------------------------------------------------------------- board (clip grid)
-  let clips = [], libraryVersion = -1, saveChoices = '';
+  let clips = [], categories = [], libraryVersion = -1, saveChoices = '';
   let filter = localStorage.getItem('echodeckFilter') || '🕒';
+  let query = '';
+  const UNSORTED = '∅';
 
   function renderChips() {
-    const cats = [...new Set(clips.map(c => c.category).filter(Boolean))].sort((a, b) => a.localeCompare(b));
-    const options = ['🕒', '★', 'All', ...cats];
+    const options = ['🕒', '★', 'All', ...categories];
+    if (categories.length && clips.some(c => !c.category)) options.push(UNSORTED);
     if (!options.includes(filter)) filter = '🕒';
     $('chips').innerHTML = '';
     for (const o of options) {
       const b = document.createElement('button');
       b.className = 'chip' + (o === filter ? ' sel' : '');
-      b.textContent = o === '🕒' ? '🕒 Recent' : o === '★' ? '★ Favourites' : o;
+      b.textContent = o === '🕒' ? '🕒 Recent' : o === '★' ? '★ Favourites' : o === UNSORTED ? 'No category' : o;
       b.onclick = () => { filter = o; localStorage.setItem('echodeckFilter', o); renderChips(); renderClips(); };
       $('chips').appendChild(b);
     }
   }
 
+  // Case- and accent-insensitive ("aanet" finds "ääNet").
+  const fold = t => (t || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+  const matches = c => !query || [c.name, c.category, c.transcript].some(t => fold(t).includes(query));
+
   function shownClips() {
+    // Searching looks through everything, whatever the chip says.
+    if (query) return clips.filter(matches).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
     if (filter === '🕒') return [...clips].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)).slice(0, 40);
-    const list = clips.filter(c => filter === 'All' || (filter === '★' ? c.favorite : c.category === filter));
+    const list = clips.filter(c => filter === 'All' || (filter === '★' ? c.favorite : filter === UNSORTED ? !c.category
+      : fold(c.category) === fold(filter)));
     return list.sort((a, b) => (b.favorite - a.favorite) || a.name.localeCompare(b.name));
   }
 
@@ -203,7 +230,10 @@
     if (shown.length === 0) {
       main.innerHTML = '<div class="empty">' + (clips.length === 0
         ? 'No clips yet — press 💾 Save above right after something funny happens.'
-        : filter === '★' ? 'No favourites yet — star clips in Echodeck\'s Soundboard tab.' : 'Nothing here.') + '</div>';
+        : query ? 'No clip matches “' + escapeHtml($('search').value) + '”.'
+        : filter === '★' ? 'No favourites yet — tap ✂ on a clip, then ☆.'
+        : filter !== 'All' && filter !== UNSORTED ? 'No clips in “' + escapeHtml(filter) + '” yet — tap ✂ on a clip and choose it under “Who said it?”.'
+        : 'Nothing here.') + '</div>';
       return;
     }
     const grid = document.createElement('div'); grid.className = 'grid';
@@ -212,9 +242,11 @@
       const name = document.createElement('div'); name.className = 'name'; name.textContent = (c.favorite ? '★ ' : '') + c.name;
       const meta = document.createElement('div'); meta.className = 'meta';
       meta.textContent = c.duration.toFixed(1) + ' s' + (c.category ? ' · ' + c.category : '');
+      const said = document.createElement('div'); said.className = 'said';
+      if (c.transcript) said.textContent = '“' + c.transcript + '”';
       const edit = document.createElement('span'); edit.className = 'edit'; edit.textContent = '✂'; edit.setAttribute('role', 'button');
       edit.onclick = ev => { ev.stopPropagation(); openEditor(c.id); };
-      b.append(name, meta, edit);
+      b.append(name, ...(c.transcript ? [said] : []), meta, edit);
       b.onclick = () => {
         b.classList.add('flash'); setTimeout(() => b.classList.remove('flash'), 150);
         act('/clips/' + c.id + '/play');
@@ -225,9 +257,13 @@
   }
 
   async function loadClips() {
-    clips = await json('/clips');
+    [clips, categories] = await Promise.all([json('/clips'), json('/categories')]);
     renderChips(); renderClips();
+    if (ed) renderEditorMeta();
   }
+
+  const escapeHtml = t => t.replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
+  $('search').addEventListener('input', () => { query = fold($('search').value.trim()); renderClips(); });
 
   function renderSaves(choices) {
     const key = choices.join(',');
@@ -244,6 +280,10 @@
       };
       $('saves').appendChild(b);
     });
+    const last = document.createElement('button');
+    last.className = 'last'; last.textContent = '▶ Last'; last.title = 'Play the newest clip into Discord';
+    last.onclick = () => act('/play-last');
+    $('saves').appendChild(last);
   }
 
   // Banner listing what's wrong (worst first); tap it to see the rest.
@@ -299,11 +339,48 @@
   let ed = null;            // { id, duration, peaks, start, end, playhead }
   let raf = 0;
 
+  // ★ and "Who said it?" for the clip being edited; they apply immediately (no Save needed).
+  let editId = null;
+  function renderEditorMeta() {
+    const clip = clips.find(c => c.id === editId);
+    if (!clip) return;
+    $('fav').textContent = clip.favorite ? '★' : '☆';
+    $('fav').classList.toggle('on', clip.favorite);
+    $('saidFull').textContent = clip.transcript ? '“' + clip.transcript + '”' : '';
+    const who = $('who'); who.innerHTML = '';
+    for (const cat of categories) {
+      const b = document.createElement('button');
+      const selected = fold(clip.category) === fold(cat);
+      b.className = 'chip' + (selected ? ' sel' : '');
+      b.textContent = cat;
+      b.onclick = () => setCategory(selected ? null : cat);
+      who.appendChild(b);
+    }
+    const add = document.createElement('button'); add.className = 'chip add'; add.textContent = '＋ New';
+    add.onclick = () => {
+      const name = (prompt('New category (for example a friend\'s name):') || '').trim();
+      if (name) setCategory(name);
+    };
+    who.appendChild(add);
+  }
+  async function setCategory(cat) {
+    if (!editId) return;
+    const r = await act('/clips/' + editId + '/category', { category: cat });
+    if (r && r.ok) await loadClips();
+  }
+  $('fav').onclick = async () => {
+    const clip = clips.find(c => c.id === editId);
+    if (!clip) return;
+    const r = await act('/clips/' + editId + '/favorite', { favorite: !clip.favorite });
+    if (r && r.ok) await loadClips();
+  };
+
   async function openEditor(id) {
     const clip = clips.find(c => c.id === id);
     document.body.classList.add('editing');
     $('back').style.display = ''; $('heading').textContent = 'Trim';
     $('name').value = clip ? clip.name : '';
+    editId = id; renderEditorMeta();
     $('status').textContent = 'Loading waveform…';
     ed = null; draw();
     try {
@@ -322,7 +399,7 @@
     if (playing) setPlaying(null);
     document.body.classList.remove('editing');
     $('back').style.display = 'none'; $('heading').textContent = 'Echodeck';
-    ed = null; refreshState();
+    ed = null; editId = null; refreshState();
   }
 
   function draw() {

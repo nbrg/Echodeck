@@ -93,6 +93,10 @@ Preparation: VB-CABLE installed. Windows output and Discord output on your heads
 | 4.0e | Open a clip in the PC editor, delete it from the phone, then **Save** in the editor. | Saved as a new clip, no error. |
 | 4.0f | Preview a clip in the headset, then tray → **Stop clips**. | The preview stops too. |
 | 4.0g | In the PC editor with Discord closed, press **Enter**. | Refused with "Discord isn't running" in the editor, nothing plays. |
+| 4.0h | Soundboard: **＋** → "Bob". Ctrl-click three clips, right-click → **Category → Bob**. | Bob appears in the filter list (even before it has clips); the three clips move to it. |
+| 4.0i | Pick Bob in the filter, **✎** → "Robert", then **🗑**. | Renamed everywhere (PC + phone). Deleting keeps the clips, just without a category. |
+| 4.0j | Settings → Clip search: tick it. | Progress bar while the model downloads (142 MB), then "Recognising speech… N to go", then "Up to date". The clip details show "what was said"; searching a spoken word finds the clip. Trimming a clip re-recognises it. CS2 frame rate isn't affected noticeably while it runs. |
+| 4.0k | Audio tab → Push to talk: tick it; in Discord add a Push to Talk keybind, click Record, then **Press it for Discord**. | Discord shows F13 as the keybind. Set Discord's input mode to Push to Talk; playing a clip lights up your Discord avatar for the clip's length, and friends hear the whole clip including the first word. Your own PTT key still works. |
 | 4.1 | Soundboard: give a clip Ctrl+NumPad1, a category and ★. Restart Echodeck. | All three are kept, and Ctrl+NumPad1 plays the clip in-game. |
 | 4.2 | Import an MP3. | It shows up with the right length and plays into Discord. |
 | 4.3a | Delete a clip in each of four ways: the row 🗑 button (Soundboard and Replay tabs), right-click → Delete, the **Del** key, and the details panel. | Each asks for confirmation once, then the clip disappears from both tabs, the clips folder and the phone. |
@@ -110,6 +114,10 @@ Preparation: VB-CABLE installed. Windows output and Discord output on your heads
 | P.1c | With Discord closed, then running but not in a voice channel: check the phone and tap a clip. | Red "Discord isn't running" banner, and the tap is refused with a red message. Out of voice: amber banner, and the tap plays but warns that nobody heard it. |
 | P.1d | Pause the replay buffer (tray), then tap **💾 Save** on the phone. | A red message says it wasn't saved and why. The editor doesn't open. |
 | P.1e | Quit Echodeck while the phone page is open. | The phone shows "Can't reach Echodeck…" until it's running again. |
+| P.1f | Phone: type a word from a clip's name into 🔎, then a word someone **said** in a transcribed clip. | Matching clips show up, across all categories. |
+| P.1g | Phone: **💾 Save last 5 s**, then in the editor tap a friend under **Who said it?**, then **＋ New** → "Charlie", then ☆. | The clip moves to that category (also on the PC), Charlie is created and selected, ☆ turns into ★. Back on the board, the Charlie chip shows the clip. |
+| P.1h | Phone: tap **▶ Last**. | The newest clip plays into Discord. |
+| P.1i | Phone: tap an empty category and **No category**. | Empty category says how to fill it; No category lists uncategorised clips. |
 | P.2 | Add to Home Screen on the iPad. | Opens full-screen and stays paired. |
 | P.3 | Click "New pairing code". | The old phone shows "Not paired" until it re-scans. |
 | P.4 | Open the link without the `#t=` part on another device. | It shows "Not paired" and can't trigger anything. |

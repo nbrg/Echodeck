@@ -13,11 +13,12 @@ public sealed class ClipVoice
     private readonly int _channels;
     private readonly int _totalFrames;
     private readonly int _edgeFadeFrames;
-    private int _position;              // frames
+    private int _position;              // frames; negative while waiting out the start delay
     private volatile int _stopFadeTotal; // 0 = not stopping
     private int _stopFadeRemaining = -1; // -1 = fade not started
 
-    public ClipVoice(AudioClip clip, string name, float gain = 1f)
+    /// <param name="startDelay">Silence before the clip starts (e.g. so Discord's push-to-talk has opened).</param>
+    public ClipVoice(AudioClip clip, string name, float gain = 1f, TimeSpan startDelay = default)
     {
         _samples = clip.Samples;
         _channels = clip.Format.Channels;
@@ -26,6 +27,7 @@ public sealed class ClipVoice
         Format = clip.Format;
         Name = name;
         Gain = gain;
+        _position = -Math.Max(0, clip.Format.FramesFor(startDelay));
     }
 
     public string Name { get; }
@@ -33,7 +35,7 @@ public sealed class ClipVoice
     public float Gain { get; }
     public bool IsFinished { get; private set; }
     public TimeSpan Duration => Format.DurationOfFrames(_totalFrames);
-    public TimeSpan Position => Format.DurationOfFrames(_position);
+    public TimeSpan Position => Format.DurationOfFrames(Math.Max(0, _position));
 
     /// <summary>Fades out over <paramref name="fade"/> and then finishes.</summary>
     public void Stop(TimeSpan fade)
@@ -56,6 +58,14 @@ public sealed class ClipVoice
             {
                 IsFinished = true;
                 return;
+            }
+
+            if (_position < 0)
+            {
+                // Still in the start delay: contribute nothing (a stop during it ends the voice).
+                if (stopTotal > 0) { IsFinished = true; return; }
+                _position++;
+                continue;
             }
 
             float g = Gain;

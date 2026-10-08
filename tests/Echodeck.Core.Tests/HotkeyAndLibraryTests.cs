@@ -194,3 +194,26 @@ public sealed class ClipLibraryStoreTests : IDisposable
         try { Directory.Delete(_root, recursive: true); } catch { /* ignore */ }
     }
 }
+
+public class PushToTalkKeyTests
+{
+    [Fact]
+    public void Only_F13_to_F24_with_correct_virtual_keys()
+    {
+        Assert.Equal(12, PushToTalkKeys.All.Count);
+        Assert.Equal((ushort)0x7C, PushToTalkKeys.VirtualKey("F13"));
+        Assert.Equal((ushort)0x87, PushToTalkKeys.VirtualKey("F24"));
+        Assert.False(PushToTalkKeys.IsValid("F12"));
+        Assert.False(PushToTalkKeys.IsValid("V"));
+        Assert.Throws<ArgumentException>(() => PushToTalkKeys.VirtualKey("F8"));
+    }
+
+    [Fact]
+    public void Settings_fix_invalid_push_to_talk_values()
+    {
+        var s = new AppSettings { PushToTalkKey = "Space", PushToTalkLeadMs = 99999 };
+        s.Normalize();
+        Assert.Equal("F13", s.PushToTalkKey);
+        Assert.Equal(1000, s.PushToTalkLeadMs);
+    }
+}

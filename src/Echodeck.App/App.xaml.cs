@@ -104,6 +104,8 @@ public partial class App : Application
 
         // Phone / tablet remote.
         _services.GetRequiredService<RemoteHost>().Start();
+        _services.GetRequiredService<PushToTalkService>().Start();
+        _services.GetRequiredService<Echodeck.Audio.Transcription.TranscriptionService>().Start();
 
         // In-place updates from GitHub Releases (installed copies only).
         _updates = _services.GetRequiredService<UpdateService>();
@@ -189,6 +191,8 @@ public partial class App : Application
         services.AddSingleton<HotkeyCoordinator>();
         services.AddSingleton<TrayIconService>();
         services.AddSingleton<RemoteHost>();
+        services.AddSingleton<PushToTalkService>();
+        services.AddSingleton<Echodeck.Audio.Transcription.TranscriptionService>();
         services.AddSingleton<UpdateService>();
 
         // View models
