@@ -2,6 +2,11 @@
 
 # Echodeck
 
+[![build](https://github.com/nbrg/Echodeck/actions/workflows/build.yml/badge.svg)](https://github.com/nbrg/Echodeck/actions/workflows/build.yml)
+[![phone UI tests (Playwright)](https://github.com/nbrg/Echodeck/actions/workflows/phone-ui-tests.yml/badge.svg)](https://github.com/nbrg/Echodeck/actions/workflows/phone-ui-tests.yml)
+![.NET 8](https://img.shields.io/badge/.NET-8-512BD4)
+![Playwright](https://img.shields.io/badge/tested%20with-Playwright-2EAD33)
+
 Instant-replay soundboard for Discord on Windows.
 
 Echodeck keeps the last 30 seconds of audio coming **from** Discord in memory, and only Discord's
@@ -9,15 +14,18 @@ audio: CS2, Spotify and browser audio are left out. When a friend says something
 replay it straight into the voice channel, or trim it and keep it as a clip. Your live mic keeps
 working the whole time.
 
-> **Status: Phases 1–5.**
+> **Features**
 > * Discord-only capture, with your side of the conversation mixed in
-> * replay into Discord over your live mic
+> * replay into Discord over your live mic, with Push to Talk support
 > * global hotkeys that work in-game
-> * a soundboard library with per-clip hotkeys
-> * a phone/tablet remote
-> * tray mode and start-with-Windows
+> * a soundboard library with per-clip hotkeys, categories (e.g. per friend) and search by
+>   what's said (offline speech recognition)
+> * saved clips trimmed and loudness-normalised automatically
+> * a phone/tablet remote to save, trim, organise and play clips mid-game, end-to-end tested
+>   with **Playwright** on iPhone, iPad and Android
+> * tray mode, start-with-Windows and automatic updates
 >
-> See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the design.
+> See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the design and [Testing](#testing) for how it's tested.
 
 ## Install (no build needed)
 
@@ -205,6 +213,28 @@ the front.
 Clips are stored in `%AppData%\Echodeck\clips`, with metadata in `clips.json`. Logs are in
 `%AppData%\Echodeck\logs`. Testing checklists are in [docs/TESTING.md](docs/TESTING.md).
 
+## Testing
+
+| Suite | What it covers | Runs on |
+|---|---|---|
+| **Unit tests** (xUnit, `tests/Echodeck.Core.Tests`) | Audio buffers and timeline, mixer and limiter, loudness (ITU-R BS.1770) and silence trimming, speech-audio resampling, clip library and categories, settings, hotkeys, the phone server's API | Every push (Windows) |
+| **End-to-end UI tests** (**Playwright** + TypeScript, `tests/Echodeck.Remote.UiTests`) | The phone remote in real browser engines: Android Chrome (Chromium), iPhone and iPad Safari (WebKit). Pairing, playing, search, filters, save → trim with touch-style drags, categories, favourites, previews, error banners, injected network failures, and **axe-core WCAG 2.1 AA** accessibility audits | Every change to the phone page or server (Ubuntu) |
+| **Manual checklists** ([docs/TESTING.md](docs/TESTING.md)) | What needs real Windows audio and Discord: capture, routing, hotkeys in games, Push to Talk | Before releases |
+
+The Playwright suite drives the **real** phone page and server. Only the Windows PC behind them
+is replaced, by an in-memory fake that each test sets up and inspects through a control API. It
+uses page objects with role-based locators, keeps traces and videos of failures, and needs no
+fixed sleeps. It currently passes 147 of 147 tests across three devices on CI and had no flaky
+tests over repeated runs. It found and fixed five real defects, including WCAG contrast failures
+and a button nested inside another button. Details, architecture and run instructions:
+[tests/Echodeck.Remote.UiTests/README.md](tests/Echodeck.Remote.UiTests/README.md).
+
+```bash
+dotnet test                                   # unit tests
+cd tests/Echodeck.Remote.UiTests && npm ci && npx playwright install chromium webkit
+npx playwright test                           # phone UI tests on all three devices
+```
+
 ## Project layout
 
 | Project | Contents |
@@ -214,4 +244,4 @@ Clips are stored in `%AppData%\Echodeck\clips`, with metadata in `clips.json`. L
 | `src/Echodeck.Remote` | Phone/tablet remote: small LAN web server (Kestrel) + touch soundboard page |
 | `src/Echodeck.App` | WPF UI, hotkeys, tray, and the DI composition root |
 | `tests/Echodeck.Core.Tests` | xUnit tests |
-| `tests/Echodeck.Remote.UiTests` | Playwright end-to-end tests of the phone remote (Android Chrome, iPhone/iPad Safari, axe accessibility) |
+| `tests/Echodeck.Remote.UiTests` | **Playwright** end-to-end tests of the phone remote (TypeScript; Android Chrome, iPhone/iPad Safari; axe accessibility), with a .NET test host |
