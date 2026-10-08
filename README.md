@@ -214,3 +214,4 @@ Clips are stored in `%AppData%\Echodeck\clips`, with metadata in `clips.json`. L
 | `src/Echodeck.Remote` | Phone/tablet remote: small LAN web server (Kestrel) + touch soundboard page |
 | `src/Echodeck.App` | WPF UI, hotkeys, tray, and the DI composition root |
 | `tests/Echodeck.Core.Tests` | xUnit tests |
+| `tests/Echodeck.Remote.UiTests` | Playwright end-to-end tests of the phone remote (Android Chrome, iPhone/iPad Safari, axe accessibility) |

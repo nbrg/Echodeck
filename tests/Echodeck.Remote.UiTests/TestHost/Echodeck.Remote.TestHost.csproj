@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Backend for the phone UI tests: runs the REAL phone server (Echodeck.Remote: Kestrel, auth,
+    embedded page) with an in-memory fake PC behind it, plus a small control API the Playwright
+    tests use to reset state, inject problems/failures and read back which commands arrived.
+    Platform-neutral (no Windows audio), so it runs on Linux CI.
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <RootNamespace>Echodeck.Remote.TestHost</RootNamespace>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\src\Echodeck.Remote\Echodeck.Remote.csproj" />
+  </ItemGroup>
+
+</Project>
