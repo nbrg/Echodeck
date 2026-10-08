@@ -18,6 +18,11 @@ Unit tests cover the platform-neutral core:
 
 They run on any OS. CI builds the whole solution on `windows-latest`.
 
+The phone/tablet remote also has end-to-end browser tests: Playwright on Android Chrome, iPhone and
+iPad Safari, including accessibility checks. See
+[tests/Echodeck.Remote.UiTests](../tests/Echodeck.Remote.UiTests/README.md). They run in CI on
+every change to the phone page or server.
+
 WASAPI behaviour can only be checked on a real Windows machine with Discord. Use the checklists
 below. **Copy diagnostics** (bottom right of the window) gives you everything needed to report a
 failure.

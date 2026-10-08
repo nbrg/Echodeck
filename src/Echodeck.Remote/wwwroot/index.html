@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#1e1f22">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
@@ -15,7 +15,7 @@
 <style>
   :root {
     --bg: #1e1f22; --panel: #2b2d31; --tile: #313338; --tile-active: #4752c4;
-    --text: #f2f3f5; --muted: #a0a4ab; --accent: #5865f2; --danger: #da373c; --ok: #23a55a; --sel: rgba(88,101,242,.28);
+    --text: #f2f3f5; --muted: #a0a4ab; --accent: #4752c4; --danger: #c42b30; --ok: #23a55a; --sel: rgba(88,101,242,.28);
   }
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
   html, body { margin: 0; background: var(--bg); color: var(--text);
@@ -47,11 +47,12 @@
   .chip { flex: none; padding: 8px 12px; border-radius: 999px; font-size: 14px; background: var(--panel); color: var(--muted); }
   .chip.sel { background: var(--text); color: var(--bg); }
   .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px; margin-top: 8px; }
-  .tile { position: relative; min-height: 88px; text-align: left; background: var(--tile); display: flex; flex-direction: column;
+  .tile { position: relative; }
+  .tile .play { width: 100%; height: 100%; min-height: 88px; text-align: left; background: var(--tile); display: flex; flex-direction: column;
     justify-content: space-between; padding: 12px 44px 12px 12px; border-radius: 14px; word-break: break-word; transition: background 0.4s; }
   .tile .name { font-weight: 600; }
   .tile .meta { color: var(--muted); font-size: 12px; margin-top: 6px; }
-  .tile.flash { background: var(--tile-active); transition: none; }
+  .tile.flash .play { background: var(--tile-active); transition: none; }
   .tile .edit { position: absolute; top: 6px; right: 6px; padding: 8px 9px; border-radius: 10px; background: rgba(255,255,255,.08); font-size: 15px; }
   .empty, .error { color: var(--muted); text-align: center; padding: 40px 16px; }
   .error h2 { color: var(--text); }
@@ -60,7 +61,7 @@
     pointer-events: none; max-width: 90vw; text-align: center; z-index: 10; }
   #toast.show { opacity: 1; }
   #toast.error { background: var(--danger); }
-  #toast.warning { background: #9a6b00; }
+  #toast.warning { background: #7d5700; }
 
   /* trim editor */
   #editor { display: none; padding-top: 10px; }
@@ -94,30 +95,30 @@
 <header>
   <div class="row">
     <button id="back" style="display:none">← Back</button>
-    <div class="title grow"><span id="dot" class="dot"></span><span id="heading">Echodeck</span></div>
+    <div class="title grow"><span id="dot" class="dot" aria-hidden="true"></span><span id="heading">Echodeck</span></div>
     <button id="mute" class="mute">🎤 Mic on</button>
     <button id="stop">■ Stop</button>
   </div>
   <div id="status" class="status">Connecting…</div>
-  <div id="problems"></div>
+  <div id="problems" aria-live="polite"></div>
 </header>
 
 <section id="board">
   <div id="saves" class="row controls"></div>
-  <input id="search" type="search" autocomplete="off" placeholder="🔎 Search names and what was said">
-  <div id="chips" class="chips"></div>
+  <input id="search" type="search" autocomplete="off" placeholder="🔎 Search names and what was said" aria-label="Search clips by name, category or what was said">
+  <div id="chips" class="chips" role="group" aria-label="Show"></div>
   <main id="main"><div class="empty">Loading clips…</div></main>
 </section>
 
 <section id="editor">
   <div class="name-row">
-    <input id="name" type="text" maxlength="120" autocomplete="off" placeholder="Clip name">
-    <button id="fav" title="Favourite">☆</button>
+    <input id="name" type="text" maxlength="120" autocomplete="off" placeholder="Clip name" aria-label="Clip name">
+    <button id="fav" aria-label="Favourite" aria-pressed="false">☆</button>
   </div>
   <div id="saidFull" class="said-full"></div>
   <div class="actions-label">Who said it? (category)</div>
-  <div id="who" class="chips"></div>
-  <canvas id="wave"></canvas>
+  <div id="who" class="chips" role="group" aria-label="Who said it?"></div>
+  <canvas id="wave" role="img" aria-label="Waveform. Drag the handles to choose the part to keep."></canvas>
   <div id="seltext" class="sel-text"></div>
   <div class="nudge">
     <span>Start</span><button data-n="s,-0.1">−0.1 s</button><button data-n="s,0.1">+0.1 s</button>
@@ -136,7 +137,7 @@
   </div>
   <div class="hint">Drag the white handles (or tap the waveform to move the nearest one). “This phone” and “PC headset” are private previews — only “Into Discord” is heard by friends.</div>
 </section>
-<div id="toast"></div>
+<div id="toast" role="status" aria-live="polite"></div>
 
 <script>
 (() => {
@@ -205,6 +206,7 @@
     for (const o of options) {
       const b = document.createElement('button');
       b.className = 'chip' + (o === filter ? ' sel' : '');
+      b.setAttribute('aria-pressed', String(o === filter));
       b.textContent = o === '🕒' ? '🕒 Recent' : o === '★' ? '★ Favourites' : o === UNSORTED ? 'No category' : o;
       b.onclick = () => { filter = o; localStorage.setItem('echodeckFilter', o); renderChips(); renderClips(); };
       $('chips').appendChild(b);
@@ -238,20 +240,25 @@
     }
     const grid = document.createElement('div'); grid.className = 'grid';
     for (const c of shown) {
-      const b = document.createElement('button'); b.className = 'tile';
+      // A tile = the play button + a separate trim button (never a button inside a button).
+      const tile = document.createElement('div'); tile.className = 'tile';
+      const b = document.createElement('button'); b.className = 'play';
       const name = document.createElement('div'); name.className = 'name'; name.textContent = (c.favorite ? '★ ' : '') + c.name;
       const meta = document.createElement('div'); meta.className = 'meta';
       meta.textContent = c.duration.toFixed(1) + ' s' + (c.category ? ' · ' + c.category : '');
       const said = document.createElement('div'); said.className = 'said';
       if (c.transcript) said.textContent = '“' + c.transcript + '”';
-      const edit = document.createElement('span'); edit.className = 'edit'; edit.textContent = '✂'; edit.setAttribute('role', 'button');
-      edit.onclick = ev => { ev.stopPropagation(); openEditor(c.id); };
-      b.append(name, ...(c.transcript ? [said] : []), meta, edit);
+      const edit = document.createElement('button'); edit.className = 'edit'; edit.textContent = '✂';
+      edit.setAttribute('aria-label', 'Trim or edit ' + c.name);
+      edit.onclick = () => openEditor(c.id);
+      b.append(name, ...(c.transcript ? [said] : []), meta);
+      b.setAttribute('aria-label', 'Play ' + c.name + ' into Discord');
       b.onclick = () => {
-        b.classList.add('flash'); setTimeout(() => b.classList.remove('flash'), 150);
+        tile.classList.add('flash'); setTimeout(() => tile.classList.remove('flash'), 150);
         act('/clips/' + c.id + '/play');
       };
-      grid.appendChild(b);
+      tile.append(b, edit);
+      grid.appendChild(tile);
     }
     main.innerHTML = ''; main.appendChild(grid);
   }
@@ -281,7 +288,7 @@
       $('saves').appendChild(b);
     });
     const last = document.createElement('button');
-    last.className = 'last'; last.textContent = '▶ Last'; last.title = 'Play the newest clip into Discord';
+    last.className = 'last'; last.textContent = '▶ Last'; last.setAttribute('aria-label', 'Play the newest clip into Discord');
     last.onclick = () => act('/play-last');
     $('saves').appendChild(last);
   }
@@ -289,6 +296,7 @@
   // Banner listing what's wrong (worst first); tap it to see the rest.
   let problemsExpanded = false, problemKey = '';
   function renderProblems(list) {
+    list = [...list].sort((a, b) => (a.severity === 'error' ? 0 : 1) - (b.severity === 'error' ? 0 : 1)); // worst first
     const worst = list.some(p => p.severity === 'error') ? 'off' : list.length ? 'warn' : 'on';
     $('dot').className = 'dot ' + worst;
     const key = JSON.stringify(list);
@@ -322,6 +330,7 @@
           : 'Connected · ready · recording replay buffer';
       $('mute').textContent = s.micMuted ? '🔇 Muted' : '🎤 Mic on';
       $('mute').classList.toggle('muted', s.micMuted);
+      $('mute').setAttribute('aria-pressed', String(s.micMuted));
       renderSaves(s.saveChoices);
       syncRemotePlaying(s);
       if (s.libraryVersion !== libraryVersion) { libraryVersion = s.libraryVersion; await loadClips(); }
@@ -346,12 +355,14 @@
     if (!clip) return;
     $('fav').textContent = clip.favorite ? '★' : '☆';
     $('fav').classList.toggle('on', clip.favorite);
+    $('fav').setAttribute('aria-pressed', String(clip.favorite));
     $('saidFull').textContent = clip.transcript ? '“' + clip.transcript + '”' : '';
     const who = $('who'); who.innerHTML = '';
     for (const cat of categories) {
       const b = document.createElement('button');
       const selected = fold(clip.category) === fold(cat);
       b.className = 'chip' + (selected ? ' sel' : '');
+      b.setAttribute('aria-pressed', String(selected));
       b.textContent = cat;
       b.onclick = () => setCategory(selected ? null : cat);
       who.appendChild(b);

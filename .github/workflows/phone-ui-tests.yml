@@ -1,0 +1,64 @@
+name: phone-ui-tests
+
+# End-to-end tests of the phone/tablet remote (tests/Echodeck.Remote.UiTests): the real phone
+# page and server with a fake PC behind it, driven by Playwright on emulated Android (Chromium),
+# iPhone and iPad (WebKit, Safari's engine). Includes axe-core accessibility checks.
+
+on:
+  push:
+    paths:
+      - 'src/Echodeck.Remote/**'
+      - 'tests/Echodeck.Remote.UiTests/**'
+      - '.github/workflows/phone-ui-tests.yml'
+  pull_request:
+    paths:
+      - 'src/Echodeck.Remote/**'
+      - 'tests/Echodeck.Remote.UiTests/**'
+  workflow_dispatch:
+
+concurrency:
+  group: phone-ui-tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: tests/Echodeck.Remote.UiTests
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 8.0.x
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: tests/Echodeck.Remote.UiTests/package-lock.json
+
+      - name: Install test dependencies
+        run: npm ci
+
+      - name: Install browsers (Chromium + WebKit)
+        run: npx playwright install --with-deps chromium webkit
+
+      - name: Type-check tests
+        run: npm run typecheck
+
+      - name: Build test host
+        run: dotnet build TestHost -c Release
+
+      - name: Run Playwright tests
+        run: npx playwright test
+
+      - name: Upload HTML report
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: phone-ui-test-report
+          path: tests/Echodeck.Remote.UiTests/playwright-report/
+          retention-days: 14

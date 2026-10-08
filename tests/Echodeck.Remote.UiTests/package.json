@@ -1,0 +1,21 @@
+{
+  "name": "echodeck-phone-ui-tests",
+  "private": true,
+  "description": "End-to-end Playwright tests for Echodeck's phone/tablet remote (mobile web UI).",
+  "scripts": {
+    "test": "playwright test",
+    "test:chrome": "playwright test --project=android-chrome",
+    "test:safari": "playwright test --project=iphone-safari --project=ipad-safari",
+    "report": "playwright show-report",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@axe-core/playwright": "4.10.2",
+    "@playwright/test": "1.56.1",
+    "@types/node": "^22.10.0",
+    "typescript": "^5.6.3"
+  },
+  "overrides": {
+    "playwright-core": "1.56.1"
+  }
+}
