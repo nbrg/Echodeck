@@ -103,6 +103,15 @@ public sealed class AppSettings
     /// <summary>Volume of that headphone copy.</summary>
     public double HeadphoneClipGain { get; set; } = 0.8;
 
+    /// <summary>
+    /// Play clips into Discord at the same loudness as your voice (measured live from your mic),
+    /// instead of at their own level. Friends then hear clips as loud as you, not louder.
+    /// </summary>
+    public bool MatchClipsToVoice { get; set; } = true;
+
+    /// <summary>How much louder (+) or quieter (−) than your voice clips play, in dB.</summary>
+    public double ClipLoudnessOffsetDb { get; set; }
+
     /// <summary>Mix your side (what Echodeck sends to Discord: mic + clips) into replays.</summary>
     public bool IncludeOwnAudioInReplays { get; set; } = true;
 
@@ -181,6 +190,7 @@ public sealed class AppSettings
         SoundboardGain = Clamp(SoundboardGain, 0, 1.5, 0.8);
         DuckingDb = Clamp(DuckingDb, -30, 0, -8);
         HeadphoneClipGain = Clamp(HeadphoneClipGain, 0, 1.5, 0.8);
+        ClipLoudnessOffsetDb = Clamp(ClipLoudnessOffsetDb, -12, 6, 0);
         if (!PushToTalkKeys.IsValid(PushToTalkKey)) PushToTalkKey = PushToTalkKeys.Default;
         PushToTalkLeadMs = Math.Clamp(PushToTalkLeadMs, 0, 1000);
         if (!SpeechModels.IsValid(TranscriptionModel)) TranscriptionModel = SpeechModels.Default;

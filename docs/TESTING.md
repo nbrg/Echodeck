@@ -92,6 +92,7 @@ Preparation: VB-CABLE installed. Windows output and Discord output on your heads
 | 3.2a | Run a game in **exclusive** fullscreen (CS2: Video → Display Mode "Fullscreen") and press **F9**. | The game is **not** minimised. The status line/tray says the whole buffer was saved instead, and the clip shows up (also on the phone). In borderless mode F9 opens the editor as usual. |
 | 3.6 | Mash F8 ten times quickly. | No crash or pile-up. A new replay replaces the playing one unless overlap is on. |
 | 4.0a | A friend says one line after 3 s of quiet; press **F8** (save 10 s). | The new clip starts just before the line and ends just after it. The status line says e.g. "trimmed 6.8 s of silence, +5.2 dB". |
+| 4.0a2 | Talk normally for 10 s, then play a loud clip and a quiet clip while a friend listens. | Audio tab shows "Your voice: −NN LUFS". Friends say both clips are about as loud as your voice. Set "Clips compared to my voice" to −6 dB: clips are clearly quieter. Untick the option: the old Clip volume slider comes back. |
 | 4.0b | Save a very quiet friend and a loud friend. Play both into Discord. | They sound about equally loud. Untick "Even out loudness" (Replay tab), save again: that clip keeps its original level. |
 | 4.0c | In the editor (F9), select a part and **Save**. | Your selection is kept exactly (no silence trimming), only loudness is evened out. |
 | 4.0d | Quit Discord, talk for a few seconds, press **F8**. | It saves with an amber note "only your side is in it". Silent → refused with a reason. |

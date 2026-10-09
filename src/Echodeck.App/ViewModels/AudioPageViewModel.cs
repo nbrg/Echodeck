@@ -4,6 +4,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Echodeck.App.Services;
 using Echodeck.Audio.Devices;
+using Echodeck.Audio.Mixing;
 using Echodeck.Core.Settings;
 using Echodeck.Core.Setup;
 
@@ -21,11 +22,16 @@ public sealed partial class AudioPageViewModel : ObservableObject, IDisposable
     private readonly AudioDeviceService _devices;
     private readonly SettingsService _settings;
     private readonly PushToTalkService _ptt;
+    private readonly AudioMixerService _mixer;
     private readonly Dispatcher _dispatcher;
+    private readonly DispatcherTimer _voiceTimer;
     private bool _loading;
 
-    public AudioPageViewModel(AudioDeviceService devices, SettingsService settings, PushToTalkService ptt)
+    public AudioPageViewModel(AudioDeviceService devices, SettingsService settings, PushToTalkService ptt, AudioMixerService mixer)
     {
+        _mixer = mixer;
+        _voiceTimer = new DispatcherTimer(TimeSpan.FromSeconds(1), DispatcherPriority.Background, (_, _) => UpdateVoiceLevel(), Dispatcher.CurrentDispatcher);
+        _voiceTimer.Start();
         _devices = devices;
         _settings = settings;
         _ptt = ptt;
@@ -79,6 +85,40 @@ public sealed partial class AudioPageViewModel : ObservableObject, IDisposable
     [ObservableProperty] private bool _hearClipsInHeadphones;
     [ObservableProperty] private double _headphoneClipVolume; // percent
     [ObservableProperty] private bool _includeOwnAudioInReplays;
+
+    // ---- clip loudness
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowClipVolume))]
+    private bool _matchClipsToVoice;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ClipOffsetText))]
+    private double _clipLoudnessOffsetDb;
+
+    [ObservableProperty] private string _voiceLevelText = "";
+
+    public bool ShowClipVolume => !MatchClipsToVoice;
+
+    public string ClipOffsetText => ClipLoudnessOffsetDb switch
+    {
+        0 => "(same)",
+        > 0 => $"(+{ClipLoudnessOffsetDb:0} dB louder)",
+        _ => $"({ClipLoudnessOffsetDb:0} dB quieter)",
+    };
+
+    partial void OnMatchClipsToVoiceChanged(bool value) => Save(s => s.MatchClipsToVoice = value);
+    partial void OnClipLoudnessOffsetDbChanged(double value) => Save(s => s.ClipLoudnessOffsetDb = Math.Round(value));
+
+    private void UpdateVoiceLevel()
+    {
+        var lufs = _mixer.VoiceLufs;
+        double heard = _mixer.Engine.VoiceMeter.SpeechSeconds;
+        VoiceLevelText = lufs is { } v
+            ? $"Your voice: {v:0} LUFS (from your recent talking). Clips play at that level."
+            : heard > 0
+                ? $"Measuring your voice… talk for a few more seconds ({heard:0}/{Echodeck.Core.Mixing.VoiceLevelMeter.MinimumSpeech.TotalSeconds:0} s). Until then clips play at a typical voice level."
+                : "Talk normally for a few seconds so Echodeck can measure your voice. Until then clips play at a typical voice level.";
+    }
 
     // ---- push to talk
     public IReadOnlyList<string> PushToTalkKeyChoices => PushToTalkKeys.All;
@@ -192,6 +232,8 @@ public sealed partial class AudioPageViewModel : ObservableObject, IDisposable
         HearClipsInHeadphones = s.HearClipsInHeadphones;
         HeadphoneClipVolume = Math.Round(s.HeadphoneClipGain * 100);
         IncludeOwnAudioInReplays = s.IncludeOwnAudioInReplays;
+        MatchClipsToVoice = s.MatchClipsToVoice;
+        ClipLoudnessOffsetDb = s.ClipLoudnessOffsetDb;
         PushToTalkEnabled = s.PushToTalkEnabled;
         PushToTalkKey = s.PushToTalkKey;
         PushToTalkLeadMs = s.PushToTalkLeadMs;
@@ -224,6 +266,7 @@ public sealed partial class AudioPageViewModel : ObservableObject, IDisposable
 
     public void Dispose()
     {
+        _voiceTimer.Stop();
         _devices.DevicesChanged -= OnDevicesChanged;
         _settings.Changed -= OnSettingsChanged;
     }

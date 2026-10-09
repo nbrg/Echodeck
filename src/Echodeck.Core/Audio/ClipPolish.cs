@@ -205,7 +205,7 @@ public static class ClipPolish
     }
 
     /// <summary>Direct-form I biquad with the BS.1770 K-weighting designs (valid at any sample rate).</summary>
-    private sealed class Biquad
+    internal sealed class Biquad
     {
         private readonly double _b0, _b1, _b2, _a1, _a2;
         private double _x1, _x2, _y1, _y2;

@@ -386,7 +386,18 @@
 
                             <TextBlock Text="Send to Discord via" Style="{StaticResource Label}" Margin="0,10,0,3" />
                             <ComboBox ItemsSource="{Binding DiscordOutputs}" SelectedItem="{Binding SelectedDiscordOutput}" />
-                            <DockPanel Margin="0,6,0,0">
+                            <CheckBox Content="Play clips as loud as my voice (recommended)" IsChecked="{Binding MatchClipsToVoice}" Margin="0,8,0,0"
+                                      ToolTip="Echodeck measures how loud you talk and plays every clip at that loudness, so friends hear clips as loud as you — not louder." />
+                            <StackPanel Margin="20,4,0,0" Visibility="{Binding MatchClipsToVoice, Converter={StaticResource BoolToVisibility}}">
+                                <DockPanel>
+                                    <TextBlock Style="{StaticResource Label}" Width="190" VerticalAlignment="Center">
+                                        <Run Text="Clips compared to my voice " /><Run Text="{Binding ClipOffsetText, Mode=OneWay}" />
+                                    </TextBlock>
+                                    <Slider Minimum="-12" Maximum="6" Value="{Binding ClipLoudnessOffsetDb, Delay=250}" TickFrequency="1" IsSnapToTickEnabled="True" VerticalAlignment="Center" />
+                                </DockPanel>
+                                <TextBlock Text="{Binding VoiceLevelText}" Style="{StaticResource Hint}" TextWrapping="Wrap" />
+                            </StackPanel>
+                            <DockPanel Margin="0,6,0,0" Visibility="{Binding ShowClipVolume, Converter={StaticResource BoolToVisibility}}">
                                 <TextBlock Style="{StaticResource Label}" Width="140">
                                     <Run Text="Clip volume " /><Run Text="{Binding SoundboardVolume, Mode=OneWay, StringFormat={}{0:0}%}" />
                                 </TextBlock>

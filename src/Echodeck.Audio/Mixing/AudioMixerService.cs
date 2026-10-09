@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Runtime.CompilerServices;
 using Echodeck.Core.Audio;
 using Echodeck.Core.Mixing;
 using Echodeck.Core.Settings;
@@ -23,6 +24,10 @@ public sealed class AudioMixerService : IDisposable
     private readonly ILogger<AudioMixerService> _logger;
     private readonly Stopwatch _clock = Stopwatch.StartNew();
     private volatile bool _hearClipsInHeadphones;
+    private volatile bool _matchVoice;
+    private double _offsetDb;
+    // Loudness of each clip's audio, measured once (clips are immutable float arrays).
+    private readonly ConditionalWeakTable<float[], StrongBox<double?>> _clipLoudness = new();
     private volatile bool _headphoneOutputActive;
 
     public AudioMixerService(MicJitterBuffer mic, SettingsService settings, ILogger<AudioMixerService> logger)
@@ -67,10 +72,27 @@ public sealed class AudioMixerService : IDisposable
     {
         if (clip.Format != AudioFormat.Internal)
             throw new ArgumentException("Clip must be in the internal 48 kHz stereo format.", nameof(clip));
+        double matchDb = MatchGainDb(clip);
+        gain *= ClipLevel.ToLinear(matchDb);
         ClipStarted?.Invoke(this, EventArgs.Empty); // press push-to-talk first
         Engine.Play(new ClipVoice(clip, name, gain, DiscordStartDelay));
         if (_hearClipsInHeadphones && _headphoneOutputActive) HeadphoneEngine.Play(new ClipVoice(clip, name, gain));
-        _logger.LogInformation("Playing to Discord: {Name} ({Duration:F1}s)", name, clip.Duration.TotalSeconds);
+        _logger.LogInformation("Playing to Discord: {Name} ({Duration:F1}s, {Match:+0.0;-0.0} dB to match voice)", name, clip.Duration.TotalSeconds, matchDb);
+    }
+
+    /// <summary>Your measured speaking loudness in Discord (LUFS, after mic volume), or null until measured.</summary>
+    public double? VoiceLufs => Engine.VoiceMeter.Lufs is { } raw ? raw + 20 * Math.Log10(Math.Max(1e-4, Engine.MicGain)) : null;
+
+    /// <summary>
+    /// dB applied to a clip so it plays as loud as your voice (+ the offset setting); 0 when the
+    /// option is off. Your voice and the clip both go through the same mic volume / Discord
+    /// processing, so matching them here keeps them matched for friends.
+    /// </summary>
+    public double MatchGainDb(AudioClip clip)
+    {
+        if (!_matchVoice) return 0;
+        var box = _clipLoudness.GetValue(clip.Samples, s => new StrongBox<double?>(ClipPolish.MeasureLoudness(s, clip.Format)));
+        return ClipLevel.MatchGainDb(box.Value, VoiceLufs, Volatile.Read(ref _offsetDb));
     }
 
     /// <summary>
@@ -113,11 +135,14 @@ public sealed class AudioMixerService : IDisposable
     private void Apply(AppSettings s)
     {
         Engine.MicGain = (float)s.MicrophoneGain;
-        Engine.SoundboardGain = (float)s.SoundboardGain;
+        // When matching your voice, the "clips vs my voice" offset replaces the soundboard volume.
+        Engine.SoundboardGain = s.MatchClipsToVoice ? 1f : (float)s.SoundboardGain;
         Engine.MicMuted = s.MicrophoneMuted;
         Engine.AllowOverlap = s.AllowClipOverlap;
         Engine.DuckingEnabled = s.DuckingEnabled;
         Engine.DuckingGain = MathF.Pow(10f, (float)s.DuckingDb / 20f);
+        _matchVoice = s.MatchClipsToVoice;
+        Volatile.Write(ref _offsetDb, s.ClipLoudnessOffsetDb);
 
         HeadphoneEngine.SoundboardGain = (float)s.HeadphoneClipGain;
         HeadphoneEngine.AllowOverlap = s.AllowClipOverlap;

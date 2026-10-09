@@ -198,6 +198,11 @@ once (142 MB) and then recognises speech in every clip on your PC, offline and a
 After that, searching "stairs" on the PC or phone finds the clip where someone said it. Pick your
 group's language there if automatic detection guesses wrong.
 
+**Clips play as loud as your voice.** Echodeck measures how loud you normally talk (from your
+mic, ignoring pauses) and plays every clip into Discord at that same loudness. A shouty clip
+isn't louder than you, and a quiet one isn't lost. Adjust **Clips compared to my voice** on the
+Audio tab if you want them a bit quieter or louder.
+
 Saved replays are **tidied up automatically**: the silence before and after the talking is cut
 (a short pad is kept), and loudness is evened out (to −18 LUFS, peaks never above −1 dBFS), so a
 quiet friend and a loud one play back at a similar volume. Both can be switched off on the Replay

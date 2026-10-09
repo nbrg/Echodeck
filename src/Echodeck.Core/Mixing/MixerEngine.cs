@@ -48,6 +48,7 @@ public sealed class MixerEngine
         _mic = mic;
         _limiter = new SoftLimiter(format.SampleRate, format.Channels);
         _duckStepPerFrame = 1f / format.FramesFor(TimeSpan.FromMilliseconds(40)); // full duck in 40 ms
+        VoiceMeter = new VoiceLevelMeter(format);
     }
 
     public AudioFormat Format => _format;
@@ -57,6 +58,12 @@ public sealed class MixerEngine
 
     /// <summary>Peak of what is sent to Discord.</summary>
     public PeakMeter OutgoingMeter { get; } = new();
+
+    /// <summary>
+    /// How loud you talk (raw mic, before <see cref="MicGain"/>), so clips can be played at the
+    /// same loudness. Not fed while muted.
+    /// </summary>
+    public VoiceLevelMeter VoiceMeter { get; private set; } = null!;
 
     public float MicGain { get => _micGain; set => _micGain = Math.Clamp(value, 0f, 4f); }
     public float SoundboardGain { get => _soundboardGain; set => _soundboardGain = Math.Clamp(value, 0f, 4f); }
@@ -115,6 +122,7 @@ public sealed class MixerEngine
         // Always consume the mic so its buffer stays at the target latency, even when muted.
         _mic.Read(mic);
         MicMeter.Process(mic);
+        if (!_micMuted) VoiceMeter.Process(mic);
 
         bool anyVoice;
         clips.Clear();
